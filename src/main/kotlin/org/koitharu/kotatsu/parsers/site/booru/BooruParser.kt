@@ -1,5 +1,6 @@
 package org.koitharu.kotatsu.parsers.site.booru
 
+import okhttp3.Headers
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaParser
 import org.koitharu.kotatsu.parsers.MangaParserAuthProvider
@@ -73,6 +74,13 @@ internal abstract class BooruParser(
 		super.onCreateConfig(keys)
 		keys.add(userAgentKey)
 	}
+
+	override fun getRequestHeaders(): Headers = super.getRequestHeaders().newBuilder()
+		.add("Referer", "https://$domain/")
+		.add("Accept", "application/json, text/javascript, */*; q=0.01")
+		.add("Accept-Language", "en-US,en;q=0.5")
+		.add("Connection", "keep-alive")
+		.build()
 
 	private val tagsCache = suspendLazy(soft = true) {
 		// A failing tag list must not make the whole filter sheet unusable.

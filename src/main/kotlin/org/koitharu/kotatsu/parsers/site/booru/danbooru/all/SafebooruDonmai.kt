@@ -9,7 +9,7 @@ import org.koitharu.kotatsu.parsers.site.booru.danbooru.DanbooruParser
 import java.util.EnumSet
 
 // Danbooru's own safe-for-work mirror; unrelated to safebooru.org, which is a Gelbooru fork.
-@MangaSourceParser("SAFEBOORU_DONMAI", "Safebooru (Danbooru)", type = ContentType.IMAGE_SET)
+@MangaSourceParser("SAFEBOORU_DONMAI", "Safebooru (Danbooru)", type = ContentType.BOORU)
 internal class SafebooruDonmai(context: MangaLoaderContext) :
 	DanbooruParser(context, MangaParserSource.SAFEBOORU_DONMAI, "safebooru.donmai.us") {
 
