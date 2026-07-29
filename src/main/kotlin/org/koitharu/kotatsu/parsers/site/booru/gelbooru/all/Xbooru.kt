@@ -6,6 +6,6 @@ import org.koitharu.kotatsu.parsers.model.ContentType
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.site.booru.gelbooru.GelbooruParser
 
-@MangaSourceParser("XBOORU", "XBooru", type = ContentType.HENTAI)
+@MangaSourceParser("XBOORU", "XBooru", type = ContentType.BOORU)
 internal class Xbooru(context: MangaLoaderContext) :
 	GelbooruParser(context, MangaParserSource.XBOORU, "xbooru.com")

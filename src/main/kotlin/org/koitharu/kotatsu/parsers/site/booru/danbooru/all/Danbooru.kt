@@ -6,7 +6,7 @@ import org.koitharu.kotatsu.parsers.model.ContentType
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.site.booru.danbooru.DanbooruParser
 
-@MangaSourceParser("DANBOORU", "Danbooru", type = ContentType.IMAGE_SET)
+@MangaSourceParser("DANBOORU", "Danbooru", type = ContentType.BOORU)
 internal class Danbooru(context: MangaLoaderContext) :
 	DanbooruParser(context, MangaParserSource.DANBOORU, "danbooru.donmai.us") {
 

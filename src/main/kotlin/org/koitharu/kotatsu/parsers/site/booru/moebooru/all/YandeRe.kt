@@ -6,6 +6,6 @@ import org.koitharu.kotatsu.parsers.model.ContentType
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.site.booru.moebooru.MoebooruParser
 
-@MangaSourceParser("YANDERE", "Yande.re", type = ContentType.IMAGE_SET)
+@MangaSourceParser("YANDERE", "Yande.re", type = ContentType.BOORU)
 internal class YandeRe(context: MangaLoaderContext) :
 	MoebooruParser(context, MangaParserSource.YANDERE, "yande.re")

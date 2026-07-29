@@ -8,7 +8,7 @@ import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.site.booru.gelbooru.GelbooruParser
 import java.util.EnumSet
 
-@MangaSourceParser("SAFEBOORU", "Safebooru", type = ContentType.IMAGE_SET)
+@MangaSourceParser("SAFEBOORU", "Safebooru", type = ContentType.BOORU)
 internal class Safebooru(context: MangaLoaderContext) :
 	GelbooruParser(context, MangaParserSource.SAFEBOORU, "safebooru.org") {
 

@@ -32,5 +32,6 @@ public enum class ContentType {
 	IMAGE_SET,
 	ARTIST_CG,
 	GAME_CG,
+	BOORU,
 	OTHER,
 }
