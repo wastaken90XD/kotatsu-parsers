@@ -22,12 +22,21 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 
 	private val availableTags = suspendLazy(initializer = ::fetchTags)
 
+	private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.US)
+
+	private val relativeDateRegex = Regex("""(\d+)\s*(giây|phút|giờ|ngày|tuần|tháng|năm)\s+trước""")
+
+	private val fallbackUrlsRegex = Regex(""""fallbackUrls"\s*:\s*(\[.*?\])""", RegexOption.DOT_MATCHES_ALL)
+
+	private val imageUrlRegex = Regex("""(https?:\\?/\\?[^"]+\.(?:jpg|jpeg|png|webp|gif))""")
+
 	override fun onCreateConfig(keys: MutableCollection<ConfigKey<*>>) {
 		super.onCreateConfig(keys)
 		keys.add(userAgentKey)
 	}
 
 	override fun getRequestHeaders(): Headers = Headers.Builder()
+		.add("User-Agent", config[userAgentKey])
 		.add("referer", "https://$domain")
 		.build()
 
@@ -72,20 +81,18 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 
 			if (filter.states.isNotEmpty()) {
 				append("&filter[status]=")
-				filter.states.forEach {
-					append(
-						when (it) {
-							MangaState.ONGOING -> "2,"
-							MangaState.FINISHED -> "1,"
-							else -> "2,1"
-						},
-					)
+				filter.states.joinTo(this, ",") {
+					when (it) {
+						MangaState.ONGOING -> "2"
+						MangaState.FINISHED -> "1"
+						else -> ""
+					}
 				}
 			}
 
 			if (filter.tags.isNotEmpty()) {
 				append("&filter[accept_genres]=")
-				append(filter.tags.joinTo(this, ",") { it.key })
+				filter.tags.joinTo(this, ",") { it.key }
 			}
 
 			if (!filter.query.isNullOrEmpty()) {
@@ -95,7 +102,7 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 
 			if (filter.tagsExclude.isNotEmpty()) {
 				append("&filter[reject_genres]=")
-				append(filter.tagsExclude.joinTo(this, ",") { it.key })
+				filter.tagsExclude.joinTo(this, ",") { it.key }
 			}
 
 			append("&page=$page")
@@ -152,9 +159,8 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 			else -> MangaState.FINISHED
 		}
 
-		val chapterListDiv =
-			doc.selectFirst("div#chapterList.justify-between.border-2.border-gray-100.dark\\:border-dark-blue.p-3.bg-white.dark\\:bg-fire-blue.shadow-md.rounded.dark\\:shadow-gray-900.mb-4")
-				?: throw ParseException("Chapters list not found!", url)
+		val chapterListDiv = doc.selectFirst("div#chapterList")
+			?: throw ParseException("Chapters list not found!", url)
 
 		val chapterLinks = chapterListDiv.select("a.block")
 		val chapters = chapterLinks.mapChapters(reversed = true) { index, a ->
@@ -184,64 +190,54 @@ internal class DamCoNuong(context: MangaLoaderContext) :
 	}
 
 	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
-    val doc = webClient.httpGet(chapter.url.toAbsoluteUrl(domain)).parseHtml()
+		val doc = webClient.httpGet(chapter.url.toAbsoluteUrl(domain)).parseHtml()
 
-    doc.selectFirst("script:containsData(window.encryptionConfig)")?.data()?.let { scriptContent ->
-        val fallbackUrlsRegex = Regex(""""fallbackUrls"\s*:\s*(\[.*?\])""")
-        val arrayString = fallbackUrlsRegex.find(scriptContent)?.groupValues?.get(1) ?: return@let
-        val urlRegex = Regex("""(https?:\\?/\\?[^"]+\.(?:jpg|jpeg|png|webp|gif))""")
-        val scriptImages = urlRegex.findAll(arrayString).map {
-            it.groupValues[1].replace("\\/", "/")
-        }.toList()
+		doc.selectFirst("script:containsData(window.encryptionConfig)")?.data()?.let { scriptContent ->
+			val arrayString = scriptContent.findGroupValue(fallbackUrlsRegex) ?: return@let
+			val scriptImages = imageUrlRegex.findAll(arrayString).map {
+				it.groupValues[1].replace("\\/", "/")
+			}.toList()
 
-        if (scriptImages.isNotEmpty()) {
-            return scriptImages.map { url ->
-                MangaPage(id = generateUid(url), url = url, preview = null, source = source)
-            }
-        }
-    }
+			if (scriptImages.isNotEmpty()) {
+				return scriptImages.map { url ->
+					MangaPage(id = generateUid(url), url = url, preview = null, source = source)
+				}
+			}
+		}
 
-    val tagImagePages = doc.select("div#chapter-content img").mapNotNull { img ->
-        val imageUrl = (img.attr("abs:src").takeIf { it.isNotBlank() }
-            ?: img.attr("abs:data-src").takeIf { it.isNotBlank() })
-            ?.trim()
+		val tagImagePages = doc.select("div#chapter-content img").mapNotNull { img ->
+			val imageUrl = img.src() ?: return@mapNotNull null
+			MangaPage(id = generateUid(imageUrl), url = imageUrl, preview = null, source = source)
+		}
 
-        imageUrl?.let {
-            MangaPage(id = generateUid(it), url = it, preview = null, source = source)
-        }
-    }
+		if (tagImagePages.isNotEmpty()) {
+			return tagImagePages
+		}
 
-    if (tagImagePages.isNotEmpty()) {
-        return tagImagePages
-    }
-
-    throw ParseException("Không tìm thấy bất kỳ nguồn ảnh nào (đã thử cả script và thẻ img).", chapter.url)
-}
+		throw ParseException("Cannot find any image source", chapter.url)
+	}
 
 	private fun parseChapterDate(date: String?): Long {
-		if (date == null) return 0
-		return when {
-			date.contains("giây trước") -> System.currentTimeMillis() - date.removeSuffix(" giây trước").toLong() * 1000
-			date.contains("phút trước") -> System.currentTimeMillis() - date.removeSuffix(" phút trước")
-				.toLong() * 60 * 1000
-
-			date.contains("giờ trước") -> System.currentTimeMillis() - date.removeSuffix(" giờ trước")
-				.toLong() * 60 * 60 * 1000
-
-			date.contains("ngày trước") -> System.currentTimeMillis() - date.removeSuffix(" ngày trước")
-				.toLong() * 24 * 60 * 60 * 1000
-
-			date.contains("tuần trước") -> System.currentTimeMillis() - date.removeSuffix(" tuần trước")
-				.toLong() * 7 * 24 * 60 * 60 * 1000
-
-			date.contains("tháng trước") -> System.currentTimeMillis() - date.removeSuffix(" tháng trước")
-				.toLong() * 30 * 24 * 60 * 60 * 1000
-
-			date.contains("năm trước") -> System.currentTimeMillis() - date.removeSuffix(" năm trước")
-				.toLong() * 365 * 24 * 60 * 60 * 1000
-
-			else -> SimpleDateFormat("dd/MM/yyyy", Locale.US).parse(date)?.time ?: 0L
+		if (date.isNullOrEmpty()) {
+			return 0L
 		}
+		val amount = date.findGroupValue(relativeDateRegex)?.toLongOrNull()
+		if (amount != null) {
+			val unitMillis = when {
+				date.contains("giây trước") -> 1000L
+				date.contains("phút trước") -> 60L * 1000L
+				date.contains("giờ trước") -> 60L * 60L * 1000L
+				date.contains("ngày trước") -> 24L * 60L * 60L * 1000L
+				date.contains("tuần trước") -> 7L * 24L * 60L * 60L * 1000L
+				date.contains("tháng trước") -> 30L * 24L * 60L * 60L * 1000L
+				date.contains("năm trước") -> 365L * 24L * 60L * 60L * 1000L
+				else -> 0L
+			}
+			if (unitMillis != 0L) {
+				return System.currentTimeMillis() - amount * unitMillis
+			}
+		}
+		return dateFormat.parseSafe(date)
 	}
 
 	private suspend fun fetchTags(): Set<MangaTag> {
