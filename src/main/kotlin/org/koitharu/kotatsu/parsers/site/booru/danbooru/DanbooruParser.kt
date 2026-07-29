@@ -18,6 +18,7 @@ import org.koitharu.kotatsu.parsers.util.json.getStringOrNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNullToSet
 import org.koitharu.kotatsu.parsers.util.json.toJSONArrayOrNull
+import org.koitharu.kotatsu.parsers.util.json.toJSONObjectOrNull
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -88,7 +89,11 @@ internal abstract class DanbooruParser(
 		return parsePostsResponse(webClient.httpGet(url).parseRaw(), url.toString()).mapJSONNotNull { jo ->
 			// Posts whose file is withheld (gold-only, deleted) carry no usable id.
 			val id = jo.getLongOrDefault("id", 0L).takeIf { it > 0L } ?: return@mapJSONNotNull null
-			jo.toBooruPost(id)
+			val post = jo.toBooruPost(id)
+			if (post.previewUrl == null && post.sampleUrl == null && post.fileUrl == null) {
+				return@mapJSONNotNull null
+			}
+			post
 		}
 	}
 
@@ -114,31 +119,49 @@ internal abstract class DanbooruParser(
 	 * Reads the search response. Vanilla Danbooru replies with a bare array, so the raw body is
 	 * parsed here to let forks that wrap it in an object override just this step.
 	 */
-	protected open fun parsePostsResponse(body: String, url: String): JSONArray =
-		body.toJSONArrayOrNull() ?: throw ParseException("Cannot parse posts response", url)
+	protected open fun parsePostsResponse(body: String, url: String): JSONArray {
+		val json = body.toJSONObjectOrNull()
+		if (json != null) {
+			val posts = json.optJSONArray("posts") ?: json.optJSONArray("post") ?: json.optJSONArray("data")
+			if (posts != null) {
+				return posts
+			}
+		}
+		return body.toJSONArrayOrNull() ?: throw ParseException("Cannot parse posts response", url)
+	}
 
 	/**
 	 * Unwraps a single post payload. Vanilla Danbooru returns the post object directly.
 	 */
-	protected open fun unwrapPost(json: JSONObject): JSONObject = json
+	protected open fun unwrapPost(json: JSONObject): JSONObject =
+		json.optJSONObject("post") ?: json.optJSONObject("posts") ?: json
 
 	/**
 	 * Converts one post object. Split out so that forks with a different field layout can
 	 * override the mapping without touching the request code.
 	 */
-	protected open fun JSONObject.toBooruPost(id: Long): BooruPost = BooruPost(
-		id = id,
-		// `file_url` is absent for restricted posts; the caller reports that as an auth error.
-		fileUrl = getStringOrNull("file_url"),
-		previewUrl = getStringOrNull("preview_file_url"),
-		sampleUrl = getStringOrNull("large_file_url"),
-		tags = getStringOrNull("tag_string"),
-		rating = getStringOrNull("rating"),
-		sourceUrl = getStringOrNull("source"),
-		author = getStringOrNull("tag_string_artist")?.substringBefore(' '),
-		createdAt = dateFormat.parseSafe(getStringOrNull("created_at")),
-		score = getIntOrDefault("score", 0),
-		width = getIntOrDefault("image_width", 0),
-		height = getIntOrDefault("image_height", 0),
-	)
+	protected open fun JSONObject.toBooruPost(id: Long): BooruPost {
+		val fileUrl = getStringOrNull("file_url") ?: getStringOrNull("url")
+		val previewUrl = getStringOrNull("preview_file_url") ?: getStringOrNull("preview_url")
+		val sampleUrl = getStringOrNull("large_file_url") ?: getStringOrNull("sample_url") ?: fileUrl
+		val createdTimestamp = getLongOrDefault("created_at", 0L).takeIf { it > 0L }
+			?.let { if (it < 100000000000L) it * 1000L else it }
+			?: dateFormat.parseSafe(getStringOrNull("created_at"))
+		return BooruPost(
+			id = id,
+			fileUrl = fileUrl,
+			previewUrl = previewUrl,
+			sampleUrl = sampleUrl,
+			tags = getStringOrNull("tag_string") ?: getStringOrNull("tags"),
+			rating = getStringOrNull("rating"),
+			sourceUrl = getStringOrNull("source"),
+			author = getStringOrNull("tag_string_artist")?.substringBefore(' ')
+				?: getStringOrNull("author")
+				?: getStringOrNull("uploader_name"),
+			createdAt = createdTimestamp,
+			score = optJSONObject("score")?.getIntOrDefault("total", 0) ?: getIntOrDefault("score", 0),
+			width = getIntOrDefault("image_width", 0).takeIf { it > 0 } ?: getIntOrDefault("width", 0),
+			height = getIntOrDefault("image_height", 0).takeIf { it > 0 } ?: getIntOrDefault("height", 0),
+		)
+	}
 }

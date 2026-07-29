@@ -8,4 +8,10 @@ import org.koitharu.kotatsu.parsers.site.booru.gelbooru.GelbooruParser
 
 @MangaSourceParser("RULE34XXX", "Rule34.xxx", type = ContentType.BOORU)
 internal class Rule34xxx(context: MangaLoaderContext) :
-	GelbooruParser(context, MangaParserSource.RULE34XXX, "rule34.xxx")
+	GelbooruParser(
+		context = context,
+		source = MangaParserSource.RULE34XXX,
+		domain = "rule34.xxx",
+		apiDomain = "api.rule34.xxx",
+		useJson = true,
+	)
