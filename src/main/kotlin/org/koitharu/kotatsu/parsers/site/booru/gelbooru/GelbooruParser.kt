@@ -1,5 +1,6 @@
 package org.koitharu.kotatsu.parsers.site.booru.gelbooru
 
+import okhttp3.HttpUrl
 import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
