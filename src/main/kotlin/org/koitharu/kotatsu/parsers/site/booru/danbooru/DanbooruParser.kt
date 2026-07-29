@@ -1,10 +1,12 @@
 package org.koitharu.kotatsu.parsers.site.booru.danbooru
 
+import org.json.JSONArray
 import org.json.JSONObject
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaParserAuthProvider
 import org.koitharu.kotatsu.parsers.config.ConfigKey
 import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
+import org.koitharu.kotatsu.parsers.exception.ParseException
 import org.koitharu.kotatsu.parsers.model.ContentRating
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaTag
@@ -15,6 +17,7 @@ import org.koitharu.kotatsu.parsers.util.json.getLongOrDefault
 import org.koitharu.kotatsu.parsers.util.json.getStringOrNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNullToSet
+import org.koitharu.kotatsu.parsers.util.json.toJSONArrayOrNull
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -55,7 +58,7 @@ internal abstract class DanbooruParser(
 	 * Danbooru timestamps are ISO-8601 with a numeric offset, for example
 	 * `2025-08-26T12:00:00.000-05:00`.
 	 */
-	private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ROOT)
+	protected val dateFormat: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ROOT)
 
 	override suspend fun isAuthorized(): Boolean = hasAuthCookies()
 
@@ -82,15 +85,16 @@ internal abstract class DanbooruParser(
 					addQueryParameter("tags", tags)
 				}
 			}.build()
-		return webClient.httpGet(url).parseJsonArray().mapJSONNotNull { jo ->
-			// Posts whose file is withheld (gold-only, deleted) carry no id-bearing file url.
+		return parsePostsResponse(webClient.httpGet(url).parseRaw(), url.toString()).mapJSONNotNull { jo ->
+			// Posts whose file is withheld (gold-only, deleted) carry no usable id.
 			val id = jo.getLongOrDefault("id", 0L).takeIf { it > 0L } ?: return@mapJSONNotNull null
 			jo.toBooruPost(id)
 		}
 	}
 
 	override suspend fun fetchPost(id: Long): BooruPost {
-		val jo = webClient.httpGet("https://$domain/posts/$id.json").parseJson()
+		val url = "https://$domain/posts/$id.json"
+		val jo = unwrapPost(webClient.httpGet(url).parseJson())
 		return jo.toBooruPost(id)
 	}
 
@@ -106,7 +110,23 @@ internal abstract class DanbooruParser(
 		}
 	}
 
-	private fun JSONObject.toBooruPost(id: Long) = BooruPost(
+	/**
+	 * Reads the search response. Vanilla Danbooru replies with a bare array, so the raw body is
+	 * parsed here to let forks that wrap it in an object override just this step.
+	 */
+	protected open fun parsePostsResponse(body: String, url: String): JSONArray =
+		body.toJSONArrayOrNull() ?: throw ParseException("Cannot parse posts response", url)
+
+	/**
+	 * Unwraps a single post payload. Vanilla Danbooru returns the post object directly.
+	 */
+	protected open fun unwrapPost(json: JSONObject): JSONObject = json
+
+	/**
+	 * Converts one post object. Split out so that forks with a different field layout can
+	 * override the mapping without touching the request code.
+	 */
+	protected open fun JSONObject.toBooruPost(id: Long): BooruPost = BooruPost(
 		id = id,
 		// `file_url` is absent for restricted posts; the caller reports that as an auth error.
 		fileUrl = getStringOrNull("file_url"),
