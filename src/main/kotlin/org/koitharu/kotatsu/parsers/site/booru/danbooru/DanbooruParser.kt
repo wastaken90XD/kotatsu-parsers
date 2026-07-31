@@ -58,8 +58,11 @@ internal abstract class DanbooruParser(
 	/**
 	 * Danbooru timestamps are ISO-8601 with a numeric offset, for example
 	 * `2025-08-26T12:00:00.000-05:00`.
+	 *
+	 * Do not use the `X` pattern here: Android 5's [SimpleDateFormat] does not support it.
+	 * `Z` accepts the equivalent offset once its colon is removed.
 	 */
-	protected val dateFormat: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ROOT)
+	protected val dateFormat: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.ROOT)
 
 	override suspend fun isAuthorized(): Boolean = hasAuthCookies()
 
@@ -146,7 +149,7 @@ internal abstract class DanbooruParser(
 		val sampleUrl = getStringOrNull("large_file_url") ?: getStringOrNull("sample_url") ?: fileUrl
 		val createdTimestamp = getLongOrDefault("created_at", 0L).takeIf { it > 0L }
 			?.let { if (it < 100000000000L) it * 1000L else it }
-			?: dateFormat.parseSafe(getStringOrNull("created_at"))
+			?: dateFormat.parseSafe(getStringOrNull("created_at")?.toLegacyTimezoneOffset())
 		return BooruPost(
 			id = id,
 			fileUrl = fileUrl,
@@ -164,4 +167,12 @@ internal abstract class DanbooruParser(
 			height = getIntOrDefault("image_height", 0).takeIf { it > 0 } ?: getIntOrDefault("height", 0),
 		)
 	}
+}
+
+/** Converts ISO-8601 timezone forms unsupported by Android 5's SimpleDateFormat `Z` parser. */
+private fun String.toLegacyTimezoneOffset(): String = when {
+	endsWith('Z') -> dropLast(1) + "+0000"
+	length >= 6 && this[length - 3] == ':' && (this[length - 6] == '+' || this[length - 6] == '-') ->
+		removeRange(length - 3, length - 2)
+	else -> this
 }
