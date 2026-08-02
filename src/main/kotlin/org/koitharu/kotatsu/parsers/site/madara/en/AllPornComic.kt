@@ -118,9 +118,9 @@ internal class AllPornComic(context: MangaLoaderContext) :
 
 			// Cover: first <img> inside the card; prefer a link pointing to the manga.
 			val coverEl = container.selectFirst("a[href] img") ?: container.selectFirst("img")
-			val coverUrl = coverEl?.src()?.takeIf { it.startsWith("http") }
-				?: coverEl?.attrAsAbsoluteUrlOrNull("data-src")
-				?: coverEl?.attrAsAbsoluteUrlOrNull("data-lazy-src")
+			val coverUrl = coverEl?.attrAsAbsoluteUrlOrNull("data-src")
+   					 ?: coverEl?.attrAsAbsoluteUrlOrNull("data-lazy-src")
+   					 ?: coverEl?.attrAsAbsoluteUrlOrNull("src")?.takeIf { it.startsWith("http") }
 
 			// Rating: find a number like "4.3" immediately preceding the heading block.
 			val ratingText = container.selectFirst("span.total_votes, .rating, .post-total-rating span, .numscore")?.text()
