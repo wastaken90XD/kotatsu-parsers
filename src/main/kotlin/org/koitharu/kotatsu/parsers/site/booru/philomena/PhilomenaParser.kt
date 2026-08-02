@@ -206,14 +206,20 @@ internal abstract class PhilomenaParser(
 		)
 		val tagsArray = opt("tags")
 		val tagNames: List<String> = when (tagsArray) {
-			is JSONArray -> (0 until tagsArray.length()).mapNotNull { i ->
-				val item = tagsArray.opt(i)
-				when (item) {
-					is String -> item.trim()
-					is JSONObject -> item.getStringOrNull("name")?.trim()
-					else -> null
+			is JSONArray -> {
+				val result = ArrayList<String>(tagsArray.length())
+				for (i in 0 until tagsArray.length()) {
+					val item = tagsArray.opt(i)
+					val raw = when (item) {
+						is String -> item.trim()
+						is JSONObject -> item.getStringOrNull("name")?.trim()
+						else -> null
+					}
+					if (!raw.isNullOrEmpty()) result.add(raw)
 				}
-			}.filter { it.isNotEmpty() }
+				result
+			}
+
 			is String -> tagsArray.split(',').map { it.trim() }.filter { it.isNotEmpty() }
 			else -> {
 				val tl = getStringOrNull("tag_list") ?: getStringOrNull("tags")

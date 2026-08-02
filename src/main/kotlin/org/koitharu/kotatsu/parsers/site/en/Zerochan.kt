@@ -4,6 +4,7 @@ import okhttp3.Headers
 import okhttp3.HttpUrl
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaParserAuthProvider
+import org.koitharu.kotatsu.parsers.MangaSourceParser
 import org.koitharu.kotatsu.parsers.config.ConfigKey
 import org.koitharu.kotatsu.parsers.core.PagedMangaParser
 import org.koitharu.kotatsu.parsers.exception.ParseException
@@ -80,9 +81,9 @@ internal class Zerochan(context: MangaLoaderContext) :
 		val query = filter.query?.trim()?.nullIfEmpty()
 		val ratingToken = ratingToken(filter.contentRating.oneOrThrowIfMany())
 		val terms = ArrayList<String>()
-		if (query != null) query.splitByWhitespace().forEach { terms += it }
-		if (tag != null) terms += tag.replace('_', ' ')
-		if (ratingToken != null) terms += ratingToken
+		if (query != null) terms.addAll(query.splitByWhitespace())
+		if (tag != null) terms.add(tag.replace('_', ' '))
+		if (ratingToken != null) terms.add(ratingToken)
 		val singleTag = terms.singleOrNull()
 		if (singleTag != null) {
 			bld.addPathSegment(singleTag.replace(' ', '+'))
@@ -170,7 +171,7 @@ internal class Zerochan(context: MangaLoaderContext) :
 		val raw = webClient.httpGet(url).parseRaw()
 		val jo = raw.toJSONObjectOrNull() ?: throw ParseException("Cannot parse post response", url)
 		val full = jo.getStringOrNull("full") ?: jo.getStringOrNull("primary") ?: jo.getStringOrNull("image")
-		?: throw ParseException("Full image URL missing", url)
+			?: throw ParseException("Full image URL missing", url)
 		return listOf(
 			MangaPage(
 				id = generateUid(full),

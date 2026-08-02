@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaParserAuthProvider
+import org.koitharu.kotatsu.parsers.MangaSourceParser
 import org.koitharu.kotatsu.parsers.config.ConfigKey
 import org.koitharu.kotatsu.parsers.core.PagedMangaParser
 import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
@@ -13,7 +14,6 @@ import org.koitharu.kotatsu.parsers.exception.ParseException
 import org.koitharu.kotatsu.parsers.model.*
 import org.koitharu.kotatsu.parsers.util.*
 import org.koitharu.kotatsu.parsers.util.json.getStringOrNull
-import org.koitharu.kotatsu.parsers.util.json.mapJSON
 import java.util.*
 
 /**
@@ -99,7 +99,7 @@ internal class Baraag(context: MangaLoaderContext) :
 		for (i in 0 until arr.length()) {
 			val status = arr.getJSONObject(i)
 			val m = parseStatus(status) ?: continue
-			result += m
+			result.add(m)
 			pageLastId = status.getStringOrNull("id")
 		}
 		lastMaxId = pageLastId
@@ -131,11 +131,13 @@ internal class Baraag(context: MangaLoaderContext) :
 				)
 			}
 		}
-		val tagSet = jo.optJSONArray("tags")?.let { tagsArr ->
-			(0 until tagsArr.length()).mapNotNullToSet { idx ->
-				val name = tagsArr.getJSONObject(idx).getStringOrNull("name") ?: return@mapNotNullToSet null
-				MangaTag(title = name.toTitleCase(sourceLocale), key = name, source = source)
+		val tagSet: Set<MangaTag> = jo.optJSONArray("tags")?.let { tagsArr ->
+			val set = LinkedHashSet<MangaTag>(tagsArr.length())
+			for (idx in 0 until tagsArr.length()) {
+				val name = tagsArr.getJSONObject(idx).getStringOrNull("name") ?: continue
+				set.add(MangaTag(title = name.toTitleCase(sourceLocale), key = name, source = source))
 			}
+			set
 		} ?: manga.tags
 		return manga.copy(
 			tags = tagSet,
@@ -163,17 +165,21 @@ internal class Baraag(context: MangaLoaderContext) :
 		val jo = webClient.httpGet(url).parseJson()
 		val media = jo.optJSONArray("media_attachments")
 			?: throw ParseException("No media attachments", url)
-		return (0 until media.length()).mapNotNull { i ->
+		val pages = ArrayList<MangaPage>(media.length())
+		for (i in 0 until media.length()) {
 			val m = media.getJSONObject(i)
-			val fileUrl = m.getStringOrNull("url") ?: return@mapNotNull null
-			MangaPage(
-				id = generateUid(fileUrl),
-				url = fileUrl,
-				preview = m.optJSONObject("meta")?.optJSONObject("small")?.getStringOrNull("url")
-					?: m.getStringOrNull("preview_url"),
-				source = source,
+			val fileUrl = m.getStringOrNull("url") ?: continue
+			pages.add(
+				MangaPage(
+					id = generateUid(fileUrl),
+					url = fileUrl,
+					preview = m.optJSONObject("meta")?.optJSONObject("small")?.getStringOrNull("url")
+						?: m.getStringOrNull("preview_url"),
+					source = source,
+				),
 			)
 		}
+		return pages
 	}
 
 	private fun parseStatus(status: JSONObject): Manga? {
@@ -184,11 +190,13 @@ internal class Baraag(context: MangaLoaderContext) :
 		val first = media.getJSONObject(0)
 		val content = status.optString("content", "")
 		val tags = status.optJSONArray("tags")
-		val tagSet = if (tags != null) {
-			(0 until tags.length()).mapNotNullToSet { i ->
-				val name = tags.getJSONObject(i).getStringOrNull("name") ?: return@mapNotNullToSet null
-				MangaTag(title = name.toTitleCase(sourceLocale), key = name, source = source)
+		val tagSet: Set<MangaTag> = if (tags != null) {
+			val set = LinkedHashSet<MangaTag>(tags.length())
+			for (i in 0 until tags.length()) {
+				val name = tags.getJSONObject(i).getStringOrNull("name") ?: continue
+				set.add(MangaTag(title = name.toTitleCase(sourceLocale), key = name, source = source))
 			}
+			set
 		} else {
 			emptySet()
 		}
