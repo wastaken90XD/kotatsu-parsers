@@ -87,7 +87,7 @@ internal abstract class E621ngParser(
 			author = optJSONObject("tags")?.optJSONArray("artist")?.optString(0)?.nullIfEmpty()
 				?: getStringOrNull("tag_string_artist")?.substringBefore(' ')
 				?: getStringOrNull("author"),
-			createdAt = dateFormat.parseSafe(getStringOrNull("created_at")),
+			createdAt = dateFormat.parseSafe(getStringOrNull("created_at")?.toLegacyTimezoneOffset()),
 			score = optJSONObject("score")?.getIntOrDefault("total", 0)
 				?: getIntOrDefault("score", 0),
 			width = file?.getIntOrDefault("width", 0)

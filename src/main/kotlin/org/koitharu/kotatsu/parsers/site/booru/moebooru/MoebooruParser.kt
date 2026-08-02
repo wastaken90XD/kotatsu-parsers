@@ -1,9 +1,12 @@
 package org.koitharu.kotatsu.parsers.site.booru.moebooru
 
+import org.json.JSONArray
 import org.json.JSONObject
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.config.ConfigKey
+import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
 import org.koitharu.kotatsu.parsers.exception.NotFoundException
+import org.koitharu.kotatsu.parsers.exception.ParseException
 import org.koitharu.kotatsu.parsers.model.ContentRating
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaTag
@@ -14,6 +17,8 @@ import org.koitharu.kotatsu.parsers.util.json.getLongOrDefault
 import org.koitharu.kotatsu.parsers.util.json.getStringOrNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNullToSet
+import org.koitharu.kotatsu.parsers.util.json.toJSONArrayOrNull
+import org.koitharu.kotatsu.parsers.util.json.toJSONObjectOrNull
 
 /**
  * Base parser for Moebooru (yande.re / konachan style sites).
@@ -50,7 +55,12 @@ internal abstract class MoebooruParser(
 					addQueryParameter("tags", tags)
 				}
 			}.build()
-		return webClient.httpGet(url).parseJsonArray().mapJSONNotNull { jo ->
+		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url.toString())
+		val array = raw.toJSONArrayOrNull()
+			?: raw.toJSONObjectOrNull()?.optJSONArray("posts")
+			?: throw ParseException("Cannot parse posts response", url.toString())
+		return array.mapJSONNotNull { jo ->
 			val id = jo.getLongOrDefault("id", 0L).takeIf { it > 0L } ?: return@mapJSONNotNull null
 			jo.toBooruPost(id)
 		}
@@ -63,7 +73,12 @@ internal abstract class MoebooruParser(
 			.addQueryParameter("tags", "id:$id")
 			.addQueryParameter("limit", "1")
 			.build()
-		val jo = webClient.httpGet(url).parseJsonArray().optJSONObject(0)
+		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url.toString())
+		val array = raw.toJSONArrayOrNull()
+			?: raw.toJSONObjectOrNull()?.optJSONArray("posts")
+			?: throw ParseException("Cannot parse post response", url.toString())
+		val jo = array.optJSONObject(0)
 			?: throw NotFoundException("Post $id not found", url.toString())
 		return jo.toBooruPost(id)
 	}
@@ -75,7 +90,13 @@ internal abstract class MoebooruParser(
 			.addQueryParameter("order", "count")
 			.addQueryParameter("limit", tagsLimit.toString())
 			.build()
-		return webClient.httpGet(url).parseJsonArray().mapJSONNotNullToSet { jo ->
+		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url.toString())
+		val array = raw.toJSONArrayOrNull()
+			?: raw.toJSONObjectOrNull()?.optJSONArray("tags")
+			?: raw.toJSONObjectOrNull()?.optJSONArray("data")
+			?: throw ParseException("Cannot parse tags response", url.toString())
+		return array.mapJSONNotNullToSet { jo ->
 			jo.getStringOrNull("name")?.let { tagOf(it) }
 		}
 	}
@@ -103,4 +124,45 @@ internal abstract class MoebooruParser(
 		width = getIntOrDefault("width", 0),
 		height = getIntOrDefault("height", 0),
 	)
+
+	/**
+	 * Catches API error payloads that arrive with HTTP 200 but describe a failure instead of
+	 * a post list. Mirrors the behaviour of [org.koitharu.kotatsu.parsers.site.booru.danbooru.DanbooruParser.throwOnApiError];
+	 * see that method for the reasoning.
+	 */
+	private fun throwOnApiError(raw: String, url: String) {
+		val trimmed = raw.trim()
+		if (trimmed.isEmpty()) {
+			throw ParseException("Empty response", url)
+		}
+		if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+			val message = trimmed.removeSurrounding("\"").trim()
+			if (message.isNotEmpty() && message.length < 1000) {
+				throw when {
+					message.contains("authentication", ignoreCase = true) ||
+						message.contains("logged in", ignoreCase = true) ||
+						message.contains("login required", ignoreCase = true) ->
+						AuthRequiredException(source)
+					else -> ParseException(message, url)
+				}
+			}
+		}
+		if (trimmed.startsWith('{')) {
+			val jo = runCatching { JSONObject(trimmed) }.getOrNull() ?: return
+			val success = jo.opt("success")
+			if (success is Boolean && !success) {
+				val msg = jo.optString("message").nullIfEmpty()
+					?: jo.optString("reason").nullIfEmpty()
+					?: jo.optString("error").nullIfEmpty()
+					?: "API error"
+				throw when {
+					msg.contains("authentication", ignoreCase = true) ||
+						msg.contains("logged in", ignoreCase = true) ||
+						msg.contains("login", ignoreCase = true) ->
+						AuthRequiredException(source)
+					else -> ParseException(msg, url)
+				}
+			}
+		}
+	}
 }
