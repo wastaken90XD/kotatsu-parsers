@@ -109,7 +109,11 @@ internal abstract class PhilomenaParser(
 	}
 
 	override suspend fun fetchPosts(page: Int, tags: String): List<BooruPost> {
-		val q = tags.ifEmpty { "*" }
+		// Philomena uses comma-separated terms for AND semantics, while BooruParser builds a
+		// space-separated string (the convention used by Danbooru/Moebooru/Gelbooru). Translate
+		// whitespace runs to commas before sending, and fall back to "*" (match everything) when
+		// no tags are selected.
+		val q = tags.replace(Regex("\\s+"), ",").ifEmpty { "*" }
 		val url = baseApiUrl()
 			.addPathSegment("search")
 			.addPathSegment(searchResource)
