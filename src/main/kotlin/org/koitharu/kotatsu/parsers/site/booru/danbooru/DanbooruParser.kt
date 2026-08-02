@@ -89,7 +89,9 @@ internal abstract class DanbooruParser(
 					addQueryParameter("tags", tags)
 				}
 			}.build()
-		return parsePostsResponse(webClient.httpGet(url).parseRaw(), url.toString()).mapJSONNotNull { jo ->
+		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url.toString())
+		return parsePostsResponse(raw, url.toString()).mapJSONNotNull { jo ->
 			// Posts whose file is withheld (gold-only, deleted) carry no usable id.
 			val id = jo.getLongOrDefault("id", 0L).takeIf { it > 0L } ?: return@mapJSONNotNull null
 			val post = jo.toBooruPost(id)
@@ -102,7 +104,9 @@ internal abstract class DanbooruParser(
 
 	override suspend fun fetchPost(id: Long): BooruPost {
 		val url = "https://$domain/posts/$id.json"
-		val jo = unwrapPost(webClient.httpGet(url).parseJson())
+		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url)
+		val jo = unwrapPost(raw.toJSONObjectOrNull() ?: throw ParseException("Cannot parse post response", url))
 		return jo.toBooruPost(id)
 	}
 
@@ -113,7 +117,12 @@ internal abstract class DanbooruParser(
 			.addQueryParameter("search[hide_empty]", "yes")
 			.addQueryParameter("limit", tagsLimit.toString())
 			.build()
-		return webClient.httpGet(url).parseJsonArray().mapJSONNotNullToSet { jo ->
+		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url.toString())
+		val array = raw.toJSONArrayOrNull()
+			?: raw.toJSONObjectOrNull()?.optJSONArray("data")
+			?: throw ParseException("Cannot parse tags response", url.toString())
+		return array.mapJSONNotNullToSet { jo ->
 			jo.getStringOrNull("name")?.let { tagOf(it) }
 		}
 	}
@@ -167,10 +176,58 @@ internal abstract class DanbooruParser(
 			height = getIntOrDefault("image_height", 0).takeIf { it > 0 } ?: getIntOrDefault("height", 0),
 		)
 	}
+
+	/**
+	 * Detects Danbooru-style API error payloads that HTTP 200 but describe an error rather
+	 * than the requested resource. Without this check those bodies get fed straight into the
+	 * JSON parser and either throw an unhelpful syntax error or — worse — parse as an array
+	 * with zero posts, returning a silent empty list.
+	 *
+	 * Recognised shapes:
+	 *  * JSON object with `"success": false` plus a `message` / `reason` field.
+	 *  * JSON string literal (some error endpoints return a quoted message).
+	 *  * Plain text (e.g. a Cloudflare interstitial that slips through with HTTP 200).
+	 */
+	protected fun throwOnApiError(raw: String, url: String) {
+		val trimmed = raw.trim()
+		if (trimmed.isEmpty()) {
+			throw ParseException("Empty response", url)
+		}
+		if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+			val message = trimmed.removeSurrounding("\"").trim()
+			if (message.isNotEmpty() && message.length < 1000) {
+				throw when {
+					message.contains("authentication", ignoreCase = true) ||
+						message.contains("logged in", ignoreCase = true) ||
+						message.contains("login required", ignoreCase = true) ||
+						message.contains("api key", ignoreCase = true) ->
+						AuthRequiredException(source)
+					else -> ParseException(message, url)
+				}
+			}
+		}
+		if (trimmed.startsWith('{')) {
+			val jo = runCatching { JSONObject(trimmed) }.getOrNull() ?: return
+			val success = jo.opt("success")
+			if (success is Boolean && !success) {
+				val msg = jo.optString("message").nullIfEmpty()
+					?: jo.optString("reason").nullIfEmpty()
+					?: jo.optString("error").nullIfEmpty()
+					?: "API error"
+				throw when {
+					msg.contains("authentication", ignoreCase = true) ||
+						msg.contains("logged in", ignoreCase = true) ||
+						msg.contains("login", ignoreCase = true) ->
+						AuthRequiredException(source)
+					else -> ParseException(msg, url)
+				}
+			}
+		}
+	}
 }
 
 /** Converts ISO-8601 timezone forms unsupported by Android 5's SimpleDateFormat `Z` parser. */
-private fun String.toLegacyTimezoneOffset(): String = when {
+internal fun String.toLegacyTimezoneOffset(): String = when {
 	endsWith('Z') -> dropLast(1) + "+0000"
 	length >= 6 && this[length - 3] == ':' && (this[length - 6] == '+' || this[length - 6] == '-') ->
 		removeRange(length - 3, length - 2)

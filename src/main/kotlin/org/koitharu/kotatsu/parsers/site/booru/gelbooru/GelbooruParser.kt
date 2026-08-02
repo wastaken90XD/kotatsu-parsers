@@ -10,7 +10,9 @@ import org.jsoup.nodes.Element
 import org.jsoup.parser.Parser
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.config.ConfigKey
+import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
 import org.koitharu.kotatsu.parsers.exception.NotFoundException
+import org.koitharu.kotatsu.parsers.exception.ParseException
 import org.koitharu.kotatsu.parsers.model.ContentRating
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaTag
@@ -51,9 +53,13 @@ internal abstract class GelbooruParser(
 	pageSize: Int = 20,
 	protected val apiDomain: String = domain,
 	protected val useJson: Boolean = false,
+	protected val apiKeyRequired: Boolean = false,
 ) : BooruParser(context, source, pageSize) {
 
 	override val configKeyDomain = ConfigKey.Domain(domain)
+
+	private val apiKeyConfig = ConfigKey.StringConfig("api_key")
+	private val userIdConfig = ConfigKey.StringConfig("user_id")
 
 	/**
 	 * Gelbooru dates look like `Tue Aug 26 12:00:00 -0500 2025`, so the day and month names must
@@ -67,6 +73,14 @@ internal abstract class GelbooruParser(
 		setFirstPage(0)
 	}
 
+	override fun onCreateConfig(keys: MutableCollection<ConfigKey<*>>) {
+		super.onCreateConfig(keys)
+		if (apiKeyRequired) {
+			keys.add(apiKeyConfig)
+			keys.add(userIdConfig)
+		}
+	}
+
 	override suspend fun fetchPosts(page: Int, tags: String): List<BooruPost> {
 		val url = dapiUrlBuilder("post")
 			.addQueryParameter("pid", page.toString())
@@ -75,8 +89,10 @@ internal abstract class GelbooruParser(
 				if (tags.isNotEmpty()) {
 					addQueryParameter("tags", tags)
 				}
+				appendApiCredentials(this)
 			}.build()
 		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url.toString())
 		val trimmed = raw.trimStart()
 		if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
 			return parseJsonPosts(raw)
@@ -94,8 +110,10 @@ internal abstract class GelbooruParser(
 	override suspend fun fetchPost(id: Long): BooruPost {
 		val url = dapiUrlBuilder("post")
 			.addQueryParameter("id", id.toString())
+			.apply { appendApiCredentials(this) }
 			.build()
 		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url.toString())
 		val trimmed = raw.trimStart()
 		if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
 			val array = raw.toJSONObjectOrNull()?.optJSONArray("post")
@@ -116,8 +134,11 @@ internal abstract class GelbooruParser(
 		val url = dapiUrlBuilder("tag")
 			.addQueryParameter("orderby", "count")
 			.addQueryParameter("limit", tagsLimit.toString())
+			.apply { appendApiCredentials(this) }
 			.build()
-		return webClient.httpGet(url).parseXml().select("tag").mapNotNullToSet { el ->
+		val raw = webClient.httpGet(url).parseRaw()
+		throwOnApiError(raw, url.toString())
+		return Jsoup.parse(raw, url.toString(), Parser.xmlParser()).select("tag").mapNotNullToSet { el ->
 			el.value("name")?.let { tagOf(it) }
 		}
 	}
@@ -211,12 +232,92 @@ internal abstract class GelbooruParser(
 		attrOrNull(name) ?: selectFirst(name)?.text()?.trim()?.nullIfEmpty()
 
 	/**
-	 * Parses the body as XML. The shared [parseHtml] helper cannot be reused because the HTML
-	 * tree builder would rearrange these documents.
+	 * Appends the configured API key / user id to a request when this source requires them.
+	 *
+	 * Several Gelbooru forks (notably rule34.xxx since August 2025) have locked the public dapi
+	 * endpoint behind per-account credentials, and return a plain text "Missing authentication"
+	 * message (HTTP 200) when they are absent. We never fabricate credentials, so only attach
+	 * them when the user has supplied both in settings.
 	 */
-	private fun Response.parseXml(): Document = use { response ->
-		val body = response.requireBody()
-		val charset = body.contentType()?.charset()?.name()
-		Jsoup.parse(body.byteStream(), charset, response.request.url.toString(), Parser.xmlParser())
+	private fun appendApiCredentials(builder: HttpUrl.Builder) {
+		if (!apiKeyRequired) return
+		val key = config[apiKeyConfig].trim()
+		val uid = config[userIdConfig].trim()
+		if (key.isNotEmpty()) {
+			builder.addQueryParameter("api_key", key)
+		}
+		if (uid.isNotEmpty()) {
+			builder.addQueryParameter("user_id", uid)
+		}
+	}
+
+	/**
+	 * Inspects a raw dapi response and throws a descriptive exception when it carries an API
+	 * level error rather than a post list. Gelbooru-family APIs return errors in three shapes
+	 * that the list parser would otherwise silently accept as "zero posts":
+	 *
+	 *  * Plain text, e.g. `Missing authentication...` (HTTP 200, no XML/JSON marker).
+	 *  * A JSON quoted string, e.g. `"Missing authentication..."` (produced when `json=1`).
+	 *  * XML with a root `<error>` element or a `<response success="false">` element.
+	 *
+	 * When the message matches the known authentication-required phrasing we throw
+	 * [AuthRequiredException] so the app can surface a login prompt; any other unexpected
+	 * payload becomes a [ParseException] with the server's message attached, instead of an
+	 * empty list that the user has no way to diagnose.
+	 */
+	private fun throwOnApiError(raw: String, url: String) {
+		val trimmed = raw.trim()
+		if (trimmed.isEmpty()) {
+			throw ParseException("Empty response", url)
+		}
+		// Plain-text / quoted-string error body.
+		if (!trimmed.startsWith('<') && !trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+			val message = trimmed.removeSurrounding("\"").trim()
+			if (message.isNotEmpty()) {
+				throw when {
+					message.contains("authentication", ignoreCase = true) ||
+						message.contains("api-key", ignoreCase = true) ||
+						message.contains("user-id", ignoreCase = true) ||
+						message.contains("api key", ignoreCase = true) ->
+						AuthRequiredException(source)
+					else -> ParseException(message, url)
+				}
+			}
+		}
+		// XML <error> body.
+		if (trimmed.startsWith('<')) {
+			val doc = runCatching { Jsoup.parse(trimmed, url, Parser.xmlParser()) }.getOrNull() ?: return
+			val errEl = doc.selectFirst("error")
+				?: doc.selectFirst("response[success=false]")
+				?: doc.selectFirst("response[success=\"false\"]")
+			if (errEl != null) {
+				val message = errEl.text().nullIfEmpty()
+					?: errEl.attr("reason").nullIfEmpty()
+					?: errEl.attr("message").nullIfEmpty()
+					?: "API error"
+				throw when {
+					message.contains("authentication", ignoreCase = true) ||
+						message.contains("api-key", ignoreCase = true) ||
+						message.contains("logged in", ignoreCase = true) ->
+						AuthRequiredException(source)
+					else -> ParseException(message, url)
+				}
+			}
+		}
+		// JSON error object ({"success":false,"message":"..."}, {"error":"..."}, or a string literal).
+		if (trimmed.startsWith('{')) {
+			val jo = runCatching { JSONObject(trimmed) }.getOrNull() ?: return
+			val msg = jo.optString("message").nullIfEmpty()
+				?: jo.optString("error").nullIfEmpty()
+				?: jo.optString("reason").nullIfEmpty()
+				?: return
+			throw when {
+				msg.contains("authentication", ignoreCase = true) ||
+					msg.contains("api-key", ignoreCase = true) ||
+					msg.contains("logged in", ignoreCase = true) ->
+					AuthRequiredException(source)
+				else -> ParseException(msg, url)
+			}
+		}
 	}
 }

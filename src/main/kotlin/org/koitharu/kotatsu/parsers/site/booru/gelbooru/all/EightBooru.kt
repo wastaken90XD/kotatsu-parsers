@@ -6,13 +6,11 @@ import org.koitharu.kotatsu.parsers.model.ContentType
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.site.booru.gelbooru.GelbooruParser
 
-@MangaSourceParser("RULE34XXX", "Rule34.xxx", type = ContentType.BOORU)
-internal class Rule34xxx(context: MangaLoaderContext) :
+@MangaSourceParser("EIGHTBOORU", "8booru", type = ContentType.BOORU)
+internal class EightBooru(context: MangaLoaderContext) :
 	GelbooruParser(
 		context = context,
-		source = MangaParserSource.RULE34XXX,
-		domain = "rule34.xxx",
-		apiDomain = "api.rule34.xxx",
-		useJson = true,
-		apiKeyRequired = true,
+		source = MangaParserSource.EIGHTBOORU,
+		domain = "8booru.booru.org",
+		useJson = false,
 	)

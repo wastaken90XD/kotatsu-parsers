@@ -34,4 +34,13 @@ public sealed class ConfigKey<T>(
 		public val presetValues: Map<String?, String?>,
 		override val defaultValue: String?,
 	) : ConfigKey<String?>("img_server")
+
+	/**
+	 * Generic free-text string preference. Use for things like API keys and usernames that the
+	 * user must type in; give the preference key a stable, unique [key] name.
+	 */
+	public class StringConfig(
+		key: String,
+		override val defaultValue: String = "",
+	) : ConfigKey<String>(key)
 }
