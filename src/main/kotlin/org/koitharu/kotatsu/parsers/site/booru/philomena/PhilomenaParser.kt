@@ -20,6 +20,7 @@ import org.koitharu.kotatsu.parsers.util.json.getStringOrNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSONNotNullToSet
 import org.koitharu.kotatsu.parsers.util.json.toJSONArrayOrNull
+import org.koitharu.kotatsu.parsers.util.json.toJSONObjectOrNull
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -293,8 +294,10 @@ internal abstract class PhilomenaParser(
 		/**
 		 * Tags that represent content ratings, not descriptive tags; they must not appear in the
 		 * filter tag list so users pick rating via the standard [ContentRating] control instead.
+		 * "grimdark"/"semi-grimdark" are content-warning tags on Derpibooru, not ratings, so they
+		 * stay in the tag list.
 		 */
-		private val RATING_TAGS = setOf("safe", "suggestive", "questionable", "explicit", "grimdark", "semi-grimdark")
+		private val RATING_TAGS = setOf("safe", "suggestive", "questionable", "explicit")
 
 		/** ISO-8601 date format used by Philomena, e.g. "2026-08-02T00:03:03Z". */
 		private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.ROOT)

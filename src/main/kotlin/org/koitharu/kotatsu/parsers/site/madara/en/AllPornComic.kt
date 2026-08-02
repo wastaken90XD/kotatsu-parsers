@@ -178,7 +178,7 @@ internal class AllPornComic(context: MangaLoaderContext) :
 				val result = ArrayList<Element>()
 				var sib = h.nextElementSibling()
 				while (sib != null) {
-					if (sib.tagName().matches(Regex("h[1-6]"))) break
+					if (sib.tagName().startsWith("h") && sib.tagName().length == 2 && sib.tagName()[1].isDigit()) break
 					val links = sib.select("a[href]")
 					if (links.isNotEmpty()) {
 						result.addAll(links)
@@ -198,7 +198,7 @@ internal class AllPornComic(context: MangaLoaderContext) :
 				if (!h.ownText().trim().startsWith(label, ignoreCase = true)) continue
 				var sib = h.nextElementSibling()
 				while (sib != null) {
-					if (sib.tagName().matches(Regex("h[1-6]"))) break
+					if (sib.tagName().startsWith("h") && sib.tagName().length == 2 && sib.tagName()[1].isDigit()) break
 					val txt = sib.ownText().trim().nullIfEmpty() ?: sib.text().trim().nullIfEmpty()
 					if (txt != null) return txt
 					sib = sib.nextElementSibling()
@@ -263,7 +263,9 @@ internal class AllPornComic(context: MangaLoaderContext) :
 			val url = mangaUrl.toAbsoluteUrl(domain).removeSuffix('/') + "/ajax/chapters/"
 			webClient.httpPost(url, emptyMap<String, String>()).parseHtml()
 		}.getOrElse {
-			val mangaId = document.select("div#manga-chapters-holder, div[data-id]").attr("data-id")
+			val mangaId = document.selectFirst("div#manga-chapters-holder")?.attr("data-id")
+				?: document.selectFirst("[data-id]")?.attr("data-id")
+				.orEmpty()
 			if (mangaId.isNotEmpty()) {
 				runCatching {
 					webClient.httpPost(
@@ -305,12 +307,17 @@ internal class AllPornComic(context: MangaLoaderContext) :
 		val root = doc.body().selectFirst(selectBodyPage)
 			?: doc.body().selectFirst("div.read-container, div#wraper, div.text-center")
 			?: throw ParseException("No image found, try to log in", fullUrl)
+		// Only accept images that look like chapter content: they live under wp-content/ or
+		// WP-manga/ on the CDN. Stray icons/logos that share the <img> tag are filtered out.
+		fun isMangaImage(url: String): Boolean = url.contains("WP-manga/data", ignoreCase = true) ||
+			url.contains("wp-content/uploads", ignoreCase = true) ||
+			(url.contains("cdn.allporncomic.com") && url.substringAfterLast('.').lowercase() in imageExts)
 		return root.select("$selectPage, img").flatMap { el ->
 			if (el.tagName() == "img") {
 				val url = (el.attrAsAbsoluteUrlOrNull("data-src")
 					?: el.attrAsAbsoluteUrlOrNull("data-lazy-src")
 					?: el.attrAsAbsoluteUrlOrNull("src"))
-					?.takeIf { it.contains("WP-manga") || it.contains("wp-content") || it.startsWith("http") }
+					?.takeIf(::isMangaImage)
 					?: return@flatMap emptyList()
 				listOf(
 					MangaPage(
@@ -360,10 +367,14 @@ internal class AllPornComic(context: MangaLoaderContext) :
 	}
 
 	private fun String.cleanupTitle(): String =
-		replace(Regex("""\\[\\d+\\]"""), "").trim()
+		replace(Regex("""\[\d+\]"""), "").trim()
 
 	private fun Element.src(): String? =
 		attrAsAbsoluteUrlOrNull("src")
 			?: attrAsAbsoluteUrlOrNull("data-src")
 			?: attrAsAbsoluteUrlOrNull("data-lazy-src")
+
+	private companion object {
+		private val imageExts = setOf("jpg", "jpeg", "png", "webp", "gif")
+	}
 }

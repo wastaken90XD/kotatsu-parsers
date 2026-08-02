@@ -138,27 +138,14 @@ internal class Multporn(context: MangaLoaderContext) :
 			}
 		}
 
-		// Candidate image links: anchors that wrap an <img>.
+		// Candidate image links: anchors that wrap an <img> whose src points to a known preview style.
 		val coverByHref = HashMap<String, String>()
 		for (a in links) {
 			val href = a.attrAsRelativeUrl("href")
 			if (!isContentUrl(href)) continue
 			val img = a.selectFirst("img") ?: continue
 			val src = img.attrAsAbsoluteUrlOrNull("src") ?: img.attrAsAbsoluteUrlOrNull("data-src") ?: continue
-			// Accept only known preview image styles: search_*, taxonomy_*, com_preview / hentai_com_pre / gif_pre / fl_pre.
-			if (!(src.contains("/styles/search_") ||
-					src.contains("/styles/taxonomy_") ||
-					src.contains("/styles/random_") ||
-					src.contains("/com_preview/") ||
-					src.contains("/hentai_com_pre/") ||
-					src.contains("/gif_pre/") ||
-					src.contains("/fl_pre/") ||
-					src.contains("/upload/"))
-			) {
-				continue
-			}
-			// Skip default placeholder images.
-			if (src.contains("/default_images/")) continue
+			if (!isContentStyleImage(src)) continue
 			coverByHref[href] = src
 		}
 
@@ -190,6 +177,10 @@ internal class Multporn(context: MangaLoaderContext) :
 				val href = a.attrAsRelativeUrl("href")
 				if (!isContentUrl(href)) continue
 				val img = div.selectFirst("img") ?: continue
+				val imgSrc = img.attrAsAbsoluteUrlOrNull("src")
+					?: img.attrAsAbsoluteUrlOrNull("data-src")
+					?: continue
+				if (!isContentStyleImage(imgSrc)) continue
 				val title = div.selectFirst("strong a, b a, h3 a, a")?.text()?.trim() ?: continue
 				if (!seen.add(href)) continue
 				result += Manga(
@@ -200,7 +191,7 @@ internal class Multporn(context: MangaLoaderContext) :
 					publicUrl = href.toAbsoluteUrl(domain),
 					rating = RATING_UNKNOWN,
 					contentRating = ContentRating.ADULT,
-					coverUrl = img.attrAsAbsoluteUrl("src"),
+					coverUrl = imgSrc,
 					tags = emptySet(),
 					state = null,
 					authors = emptySet(),
@@ -215,24 +206,25 @@ internal class Multporn(context: MangaLoaderContext) :
 		val doc = webClient.httpGet(manga.url.toAbsoluteUrl(domain)).parseHtml()
 		val title = doc.selectFirst("h1[id=page-title], h1.title, h1")?.text()?.nullIfEmpty() ?: manga.title
 
-		// Generic helper: walk siblings after an <h3> whose text starts with [label] and collect links.
+		// Generic helper: walk siblings after any <h1>-<h5> whose text starts with [label]
+		// and collect link texts until the next heading.  Multiple sections with the same prefix
+		// (e.g. "Tags:" and "User tags:") are all collected.
 		fun linksAfterHeading(label: String): List<String> {
 			val headings = doc.select("h1, h2, h3, h4, h5")
+			val found = ArrayList<String>()
 			for (h in headings) {
 				if (!h.ownText().trim().startsWith(label, ignoreCase = true)) continue
-				val found = ArrayList<String>()
 				var sib = h.nextElementSibling()
 				while (sib != null) {
-					if (sib.tagName().matches(Regex("h[1-6]"))) break
+					if (sib.tagName().startsWith("h") && sib.tagName().length == 2 && sib.tagName()[1].isDigit()) break
 					for (a in sib.select("li a, a[href]")) {
 						val txt = a.text().trim()
 						if (txt.isNotEmpty() && txt != "...") found += txt
 					}
 					sib = sib.nextElementSibling()
 				}
-				if (found.isNotEmpty()) return found
 			}
-			return emptyList()
+			return found
 		}
 
 		val authors = linksAfterHeading("Author").toCollection(LinkedHashSet())
@@ -319,10 +311,11 @@ internal class Multporn(context: MangaLoaderContext) :
 	 * Content pages live at one of these prefixes; everything else (category, filter,
 	 * pagination, user pages, tag hubs) must be ignored when scraping list/link pairs.
 	 *
-	 * Tag-hub pages also start with /comics/, /hentai_manga/, etc. but have only a single
-	 * path segment (e.g. `/comics/pokemon`).  We require at least one additional segment
-	 * so those hubs are excluded.  User-uploaded content uses the `/mp<digits>` prefix
-	 * with no slash.
+	 * Tag-hub pages also share these prefixes (e.g. `/comics/pokemon`), so the URL shape
+	 * alone cannot reliably separate hubs from content.  To avoid false matches the cover
+	 * filter in [getListPage] additionally rejects images under `styles/menu_*`, which
+	 * is what hubs use; if an href has no valid content-style cover it will not be
+	 * paired into a [Manga].  User-uploaded content uses the `/mp<digits>` prefix.
 	 */
 	private fun isContentUrl(href: String): Boolean {
 		val path = href.removePrefix("/").substringBefore("?").substringBefore("#")
@@ -338,6 +331,20 @@ internal class Multporn(context: MangaLoaderContext) :
 			else -> segments[0].startsWith("mp") && segments[0].length > 2 &&
 				segments[0].removePrefix("mp").all { it.isDigit() }
 		}
+	}
+
+	private fun isContentStyleImage(src: String): Boolean {
+		if (src.contains("/styles/menu_") || src.contains("/default_images/") || src.contains("styles/avatars")) {
+			return false
+		}
+		return src.contains("/styles/search_") ||
+			src.contains("/styles/taxonomy_") ||
+			src.contains("/styles/random_") ||
+			src.contains("/com_preview/") ||
+			src.contains("/hentai_com_pre/") ||
+			src.contains("/gif_pre/") ||
+			src.contains("/fl_pre/") ||
+			src.contains("/upload/")
 	}
 
 	/**

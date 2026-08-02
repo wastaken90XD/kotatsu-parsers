@@ -2,8 +2,6 @@ package org.koitharu.kotatsu.parsers.site.en
 
 import okhttp3.Headers
 import okhttp3.HttpUrl
-import org.json.JSONArray
-import org.json.JSONObject
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaParserAuthProvider
 import org.koitharu.kotatsu.parsers.config.ConfigKey
@@ -11,10 +9,11 @@ import org.koitharu.kotatsu.parsers.core.PagedMangaParser
 import org.koitharu.kotatsu.parsers.exception.ParseException
 import org.koitharu.kotatsu.parsers.model.*
 import org.koitharu.kotatsu.parsers.util.*
-import org.koitharu.kotatsu.parsers.util.json.getIntOrDefault
 import org.koitharu.kotatsu.parsers.util.json.getLongOrDefault
 import org.koitharu.kotatsu.parsers.util.json.getStringOrNull
 import org.koitharu.kotatsu.parsers.util.json.mapJSON
+import org.koitharu.kotatsu.parsers.util.json.toJSONArrayOrNull
+import org.koitharu.kotatsu.parsers.util.json.toJSONObjectOrNull
 import java.util.*
 
 /**
@@ -55,7 +54,7 @@ internal class Zerochan(context: MangaLoaderContext) :
 	override val availableSortOrders: Set<SortOrder> = EnumSet.of(SortOrder.NEWEST)
 
 	override val filterCapabilities: MangaListFilterCapabilities = MangaListFilterCapabilities(
-		isMultipleTagsSupported = true,
+		isMultipleTagsSupported = false,
 		isSearchSupported = true,
 		isSearchWithFiltersSupported = true,
 		isTagsExclusionSupported = false,
@@ -72,13 +71,23 @@ internal class Zerochan(context: MangaLoaderContext) :
 	override suspend fun getUsername(): String = "Zerochan"
 
 	override suspend fun getListPage(page: Int, order: SortOrder, filter: MangaListFilter): List<Manga> {
-		val tags = buildTagQuery(filter)
 		val bld = urlBuilder()
-		if (tags.isNotEmpty()) {
-			// Zerochan tag pages live at /<Tag.Name>; encode spaces as '+'.
-			for (segment in tags.split('/')) {
-				if (segment.isNotEmpty()) bld.addPathSegment(segment)
-			}
+		// Zerochan exposes two modes: a tag page at /<SingleTag>?json and search via /?q=...&json.
+		// Comma/space-separated multi-term queries are not supported (see isMultipleTagsSupported),
+		// but we still send free-text queries and tag values consistently through ?q= when more
+		// than one term is requested, to avoid producing broken /Tag1,Tag2 URLs.
+		val tag = filter.tags.firstOrNull()?.key
+		val query = filter.query?.trim()?.nullIfEmpty()
+		val ratingToken = ratingToken(filter.contentRating.oneOrThrowIfMany())
+		val terms = ArrayList<String>()
+		if (query != null) query.splitByWhitespace().forEach { terms += it }
+		if (tag != null) terms += tag.replace('_', ' ')
+		if (ratingToken != null) terms += ratingToken
+		val singleTag = terms.singleOrNull()
+		if (singleTag != null) {
+			bld.addPathSegment(singleTag.replace(' ', '+'))
+		} else if (terms.isNotEmpty()) {
+			bld.addQueryParameter("q", terms.joinToString("+"))
 		}
 		bld.addQueryParameter("json", "")
 		bld.addQueryParameter("p", page.toString())
@@ -96,8 +105,6 @@ internal class Zerochan(context: MangaLoaderContext) :
 			val fileUrl = jo.getStringOrNull("primary")?.toAbsolute()
 			val thumb = jo.getStringOrNull("thumbnail")?.toAbsolute()
 			val tagString = jo.getStringOrNull("tags").orEmpty()
-			val w = jo.getIntOrDefault("width", 0)
-			val h = jo.getIntOrDefault("height", 0)
 			val relUrl = "/$id"
 			val tagSet = tagString.split(',').mapNotNullToSet { rawTag ->
 				val key = rawTag.trim().replace(' ', '_').nullIfEmpty() ?: return@mapNotNullToSet null
@@ -174,21 +181,11 @@ internal class Zerochan(context: MangaLoaderContext) :
 		)
 	}
 
-	private fun buildTagQuery(filter: MangaListFilter): String {
-		val tags = ArrayList<String>()
-		filter.query?.split(' ')?.forEach { w ->
-			w.trim().nullIfEmpty()?.let { tags.add(it.replace(' ', '+')) }
-		}
-		filter.tags.forEach { tags.add(it.key.replace(' ', '+')) }
-		filter.contentRating.oneOrThrowIfMany()?.let {
-			when (it) {
-				ContentRating.SAFE -> tags.add("safe")
-				ContentRating.SUGGESTIVE -> tags.add("suggestive")
-				ContentRating.ADULT -> tags.add("nsfw")
-				else -> Unit
-			}
-		}
-		return tags.joinToString(",")
+	private fun ratingToken(rating: ContentRating?): String? = when (rating) {
+		ContentRating.SAFE -> "safe"
+		ContentRating.SUGGESTIVE -> "suggestive"
+		ContentRating.ADULT -> "nsfw"
+		else -> null
 	}
 
 	private fun guessRating(tags: String): ContentRating {
