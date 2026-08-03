@@ -9,7 +9,7 @@ import org.koitharu.kotatsu.parsers.site.mangareader.MangaReaderParser
 
 @MangaSourceParser("NTRMANGA", "NtrManga", "th", ContentType.HENTAI)
 internal class NtrManga(context: MangaLoaderContext) :
-	MangaReaderParser(context, MangaParserSource.NTRMANGA, "www.ntr-manga.com", pageSize = 30, searchPageSize = 10) {
+	MangaReaderParser(context, MangaParserSource.NTRMANGA, "www.ntr-manga.net", pageSize = 30, searchPageSize = 10) {
 	override val filterCapabilities: MangaListFilterCapabilities
 		get() = super.filterCapabilities.copy(
 			isTagsExclusionSupported = false,
