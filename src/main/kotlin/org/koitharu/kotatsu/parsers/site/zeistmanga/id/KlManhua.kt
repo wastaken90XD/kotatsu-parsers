@@ -12,7 +12,7 @@ import org.koitharu.kotatsu.parsers.util.requireElementById
 
 @MangaSourceParser("KLMANHUA", "KlManhua", "id", ContentType.HENTAI)
 internal class KlManhua(context: MangaLoaderContext) :
-	ZeistMangaParser(context, MangaParserSource.KLMANHUA, "klmanhua.blogspot.com") {
+	ZeistMangaParser(context, MangaParserSource.KLMANHUA, "klmanhua.com") {
 
 	override suspend fun fetchAvailableTags(): Set<MangaTag> {
 		val doc = webClient.httpGet("https://$domain").parseHtml()
