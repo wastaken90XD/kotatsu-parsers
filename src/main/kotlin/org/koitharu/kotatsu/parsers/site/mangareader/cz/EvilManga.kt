@@ -1,11 +1,13 @@
 package org.koitharu.kotatsu.parsers.site.mangareader.cz
 
+import org.koitharu.kotatsu.parsers.Broken
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaSourceParser
 import org.koitharu.kotatsu.parsers.model.ContentType
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.site.mangareader.MangaReaderParser
 
+@Broken("Site requires login/Cloudflare Turnstile (no anonymous access)")
 @MangaSourceParser("EVILMANGA", "EvilManga", "cs", ContentType.HENTAI)
 internal class EvilManga(context: MangaLoaderContext) :
 	MangaReaderParser(context, MangaParserSource.EVILMANGA, "evil-manga.eu", pageSize = 20, searchPageSize = 10) {

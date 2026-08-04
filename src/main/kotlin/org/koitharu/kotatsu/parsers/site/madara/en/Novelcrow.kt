@@ -58,21 +58,22 @@ internal class Novelcrow(context: MangaLoaderContext) :
 			append(domain)
 			when {
 				!filter.query.isNullOrEmpty() -> {
+					if (page > 1) append("/page/").append(page)
 					append("/?s=")
 					append(filter.query.urlEncoded())
 					append("&post_type=wp-manga")
-					if (page > 1) append("&page=").append(page)
 					if (sortParam.isNotEmpty()) append("&m_orderby=").append(sortParam)
 				}
-				else -> {
-					if (filter.tags.isNotEmpty()) {
-						val tag = filter.tags.first()
-						append('/').append(tagPrefix).append(tag.key).append('/')
-					} else {
-						append('/').append(listUrl)
-					}
+				filter.tags.isNotEmpty() -> {
+					val tag = filter.tags.first()
+					append('/').append(tagPrefix).append(tag.key).append('/')
 					if (page > 1) append("page/").append(page).append('/')
 					if (sortParam.isNotEmpty()) append("?m_orderby=").append(sortParam)
+				}
+				else -> {
+					if (page > 1) append("/page/").append(page)
+					append("/?s=&post_type=wp-manga")
+					if (sortParam.isNotEmpty()) append("&m_orderby=").append(sortParam)
 				}
 			}
 		}
@@ -235,27 +236,8 @@ internal class Novelcrow(context: MangaLoaderContext) :
 	}
 
 	override suspend fun loadChapters(mangaUrl: String, document: Document): List<MangaChapter> {
-		val doc = runCatching {
-			val url = mangaUrl.toAbsoluteUrl(domain).removeSuffix('/') + "/ajax/chapters/"
-			webClient.httpPost(url, emptyMap<String, String>()).parseHtml()
-		}.getOrElse {
-			val mangaId = document.selectFirst("div#manga-chapters-holder")?.attr("data-id")
-				?: document.selectFirst("[data-id]")?.attr("data-id")
-				.orEmpty()
-			if (mangaId.isNotEmpty()) {
-				runCatching {
-					webClient.httpPost(
-						"https://$domain/wp-admin/admin-ajax.php",
-						"action=manga_get_chapters&manga=$mangaId",
-					).parseHtml()
-				}.getOrNull()
-			} else {
-				null
-			} ?: document
-		}
-
 		val dateFormat = SimpleDateFormat(datePattern, sourceLocale)
-		return doc.body().select(selectChapter).mapChapters(reversed = true) { i, li ->
+		return document.body().select(selectChapter).mapChapters(reversed = true) { i, li ->
 			val a = li.selectFirst("a[href]") ?: return@mapChapters null
 			val href = a.attrAsRelativeUrl("href")
 			val link = if (href.contains('?')) "$href&style=list" else "$href?style=list"
@@ -323,7 +305,7 @@ internal class Novelcrow(context: MangaLoaderContext) :
 	}
 
 	override suspend fun fetchAvailableTags(): Set<MangaTag> {
-		val doc = webClient.httpGet("https://$domain/$listUrl").parseHtml()
+		val doc = webClient.httpGet("https://$domain/?s=&post_type=wp-manga").parseHtml()
 		return doc.select("a[href*=/$tagPrefix]").mapNotNullToSet { a ->
 			val href = a.attr("href")
 			if (!href.contains(tagPrefix)) return@mapNotNullToSet null

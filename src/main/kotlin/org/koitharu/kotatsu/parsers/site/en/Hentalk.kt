@@ -5,6 +5,7 @@ import androidx.collection.MutableIntList
 import androidx.collection.MutableIntObjectMap
 import org.json.JSONObject
 import org.jsoup.HttpStatusException
+import org.koitharu.kotatsu.parsers.Broken
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaSourceParser
 import org.koitharu.kotatsu.parsers.config.ConfigKey
@@ -20,6 +21,7 @@ import java.util.*
 private const val SERVER_DATA_SAVER = "?type="
 private const val SERVER_DATA = ""
 
+@Broken("Dead domain (hentalk.pw is offline)")
 @MangaSourceParser("HENTALK", "Hentalk", "en", type = ContentType.HENTAI)
 internal class Hentalk(context: MangaLoaderContext) :
 	PagedMangaParser(context, MangaParserSource.HENTALK, 24) {
