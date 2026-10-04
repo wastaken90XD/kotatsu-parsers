@@ -121,7 +121,7 @@ internal abstract class PhilomenaParser(
 			return details
 		}
 		// Q22: chapters are stable, selectable direct renditions; chapter zero is the original.
-		val chapters = media.variants.mapIndexed { index, (tier, url) ->
+		val chapters = media.variants.entries.mapIndexed { index, (tier, url) ->
 			MangaChapter(
 				id = generateUid("${manga.url}?rep=$tier"),
 				title = representationTitle(tier, url),
