@@ -191,8 +191,14 @@ internal abstract class PhilomenaParser(
 	}
 
 	protected open fun JSONObject.toBooruPost(id: Long): BooruPost {
-		val fileUrl = resolveUrl(getStringOrNull("view_url") ?: getStringOrNull("image") ?: getStringOrNull("file_url"))
 		val reps = optJSONObject("representations")
+		val viewUrl = getStringOrNull("view_url") ?: getStringOrNull("image") ?: getStringOrNull("file_url")
+		// Q22: Philomena video records provide direct renditions; use medium as the default quality.
+		val fileUrl = if (getStringOrNull("mime_type")?.startsWith("video/", ignoreCase = true) == true) {
+			resolveUrl(reps?.getStringOrNull("medium") ?: reps?.getStringOrNull("large") ?: viewUrl)
+		} else {
+			resolveUrl(viewUrl)
+		}
 		val previewUrl = resolveUrl(
 			reps?.getStringOrNull("thumb")
 				?: reps?.getStringOrNull("thumb_small")
