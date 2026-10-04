@@ -45,6 +45,7 @@ representations (`thumb`, `thumb_small`, `thumb_tiny`) are excluded.
 | MSPAbooru | — | Gelbooru 0.2 | — | Q18 | BLOCKED; no code change | FETCHED: API list/search/detail/rating/end responses have image path components but omit direct URLs. DOCUMENTED: the shared Gelbooru base is frozen. | `{"directory":"15","hash":"…","image":"…png"}` |
 | Pbooru | — | Unknown | — | — | BLOCKED; no code change | FETCHED: homepage and listing requests returned HTTP 500. | `Failed to fetch page (HTTP 500)` |
 | Rule34Video | A | Kernel Video Sharing-style HTML | `KvsVideoParser` | Q20, Q22 | ADDED; device media check pending | FETCHED: newest pages 1 and 2, two-word search, empty search, terminal and past-terminal pages, detail, and time-signed direct MP4 download links. The site’s JavaScript search-pagination endpoints returned HTTP 500; search deliberately ends after page one rather than repeat results. | `…/get_file/…/4643286_1080p.mp4/?v-acctoken=…` |
+| Wallhaven | A | Wallhaven API v1 | `WallhavenParser` | Q20 | ADDED; anonymous SFW API only | FETCHED: API listing pages 1 and 2, two-word search, empty search, detail, and an invalid far page returning `Bad Request`. The anonymous request is explicitly constrained to `purity=100` (SFW). | `{"id":"d8vvlo","purity":"sfw","path":"https://w.wallhaven.cc/full/d8/wallhaven-d8vvlo.png"}` |
 
 ## Existing sources not reassessed on this branch
 
