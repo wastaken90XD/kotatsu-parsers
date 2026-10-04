@@ -8,7 +8,7 @@ import org.koitharu.kotatsu.parsers.site.madara.MadaraParser
 
 @MangaSourceParser("YURILIVE", "YuriLive", "pt", ContentType.HENTAI)
 internal class YuriLive(context: MangaLoaderContext) :
-	MadaraParser(context, MangaParserSource.YURILIVE, "yuri.live") {
+	MadaraParser(context, MangaParserSource.YURILIVE, "yurionair.top") {
 	override val tagPrefix = "manga-genero/"
 	override val datePattern: String = "dd/MM/yyyy"
 }

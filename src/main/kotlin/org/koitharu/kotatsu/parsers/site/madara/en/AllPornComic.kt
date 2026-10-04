@@ -258,28 +258,8 @@ internal class AllPornComic(context: MangaLoaderContext) :
 	}
 
 	override suspend fun loadChapters(mangaUrl: String, document: Document): List<MangaChapter> {
-		// Try the ajax/chapters/ POST endpoint first; fall back to parsing the inline listing.
-		val doc = runCatching {
-			val url = mangaUrl.toAbsoluteUrl(domain).removeSuffix('/') + "/ajax/chapters/"
-			webClient.httpPost(url, emptyMap<String, String>()).parseHtml()
-		}.getOrElse {
-			val mangaId = document.selectFirst("div#manga-chapters-holder")?.attr("data-id")
-				?: document.selectFirst("[data-id]")?.attr("data-id")
-				.orEmpty()
-			if (mangaId.isNotEmpty()) {
-				runCatching {
-					webClient.httpPost(
-						"https://$domain/wp-admin/admin-ajax.php",
-						"action=manga_get_chapters&manga=$mangaId",
-					).parseHtml()
-				}.getOrNull()
-			} else {
-				null
-			} ?: document
-		}
-
 		val dateFormat = SimpleDateFormat(datePattern, sourceLocale)
-		return doc.body().select(selectChapter).mapChapters(reversed = true) { i, li ->
+		return document.body().select(selectChapter).mapChapters(reversed = true) { i, li ->
 			val a = li.selectFirst("a[href]") ?: return@mapChapters null
 			val href = a.attrAsRelativeUrl("href")
 			val link = if (href.contains('?')) "$href&style=list" else "$href?style=list"

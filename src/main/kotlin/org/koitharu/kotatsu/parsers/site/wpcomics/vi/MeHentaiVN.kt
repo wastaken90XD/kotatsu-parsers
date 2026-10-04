@@ -5,6 +5,7 @@ import androidx.collection.ArraySet
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import org.jsoup.nodes.Document
+import org.koitharu.kotatsu.parsers.Broken
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.MangaSourceParser
 import org.koitharu.kotatsu.parsers.config.ConfigKey
@@ -15,6 +16,7 @@ import org.koitharu.kotatsu.parsers.util.*
 import java.net.URL
 import java.util.*
 
+@Broken("Domain hijacked/replaced with an ad/redirect site (mehentaivn.xyz compromised)")
 @MangaSourceParser("MEHENTAIVN", "MeHentaiVN", "vi", ContentType.HENTAI)
 internal class MeHentaiVN(context: MangaLoaderContext) :
 	WpComicsParser(context, MangaParserSource.MEHENTAIVN, "www.mehentaivn.xyz", 44) {
