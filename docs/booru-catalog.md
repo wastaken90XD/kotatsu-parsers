@@ -44,7 +44,7 @@ representations (`thumb`, `thumb_small`, `thumb_tiny`) are excluded.
 | Dorkbooru | — | Unknown | — | — | BLOCKED; no code change | FETCHED: homepage request returned HTTP 500. | `Failed to fetch page (HTTP 500)` |
 | MSPAbooru | — | Gelbooru 0.2 | — | Q18 | BLOCKED; no code change | FETCHED: API list/search/detail/rating/end responses have image path components but omit direct URLs. DOCUMENTED: the shared Gelbooru base is frozen. | `{"directory":"15","hash":"…","image":"…png"}` |
 | Pbooru | — | Unknown | — | — | BLOCKED; no code change | FETCHED: homepage and listing requests returned HTTP 500. | `Failed to fetch page (HTTP 500)` |
-| Rule34Video | — | Kernel Video Sharing-style HTML | — | Q20, Q22 | BLOCKED; no code change | FETCHED: newest pages, search, empty search, terminal page, detail, and time-signed direct MP4 download links. Search pagination is JavaScript-block based; direct attempts at its async routes returned HTTP 500. | `…/get_file/…/4643286_1080p.mp4/?v-acctoken=…` |
+| Rule34Video | A | Kernel Video Sharing-style HTML | `KvsVideoParser` | Q20, Q22 | ADDED; device media check pending | FETCHED: newest pages 1 and 2, two-word search, empty search, terminal and past-terminal pages, detail, and time-signed direct MP4 download links. The site’s JavaScript search-pagination endpoints returned HTTP 500; search deliberately ends after page one rather than repeat results. | `…/get_file/…/4643286_1080p.mp4/?v-acctoken=…` |
 
 ## Existing sources not reassessed on this branch
 
