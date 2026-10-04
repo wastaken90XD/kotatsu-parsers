@@ -118,7 +118,7 @@ internal class Zerochan(context: MangaLoaderContext) :
 		return array.mapJSON { jo ->
 			val id = jo.getLongOrDefault("id", 0L)
 			val fileUrl = jo.getStringOrNull("primary")?.toAbsolute()
-			val thumb = jo.getStringOrNull("thumbnail")?.toAbsolute()
+			val thumb = jo.getStringOrNull("thumbnail")?.toAbsolute()?.preferredThumbnailUrl()
 			val tagString = jo.getStringOrNull("tags").orEmpty()
 			val relUrl = "/$id"
 			val tagSet = tagString.split(',').mapNotNullToSet { rawTag ->
@@ -151,7 +151,7 @@ internal class Zerochan(context: MangaLoaderContext) :
 		val raw = webClient.httpGet(url).parseRaw()
 		val jo = raw.toJSONObjectOrNull() ?: throw ParseException("Cannot parse post response", url)
 		val full = jo.getStringOrNull("full") ?: jo.getStringOrNull("primary") ?: jo.getStringOrNull("image")
-		val thumb = jo.getStringOrNull("thumbnail")
+		val thumb = jo.getStringOrNull("thumbnail")?.preferredThumbnailUrl()
 		val tagString = jo.getStringOrNull("tags").orEmpty()
 		val tagSet = tagString.split(',').mapNotNullToSet { rawTag ->
 			val key = rawTag.trim().replace(' ', '_').nullIfEmpty() ?: return@mapNotNullToSet null
@@ -192,10 +192,19 @@ internal class Zerochan(context: MangaLoaderContext) :
 			MangaPage(
 				id = generateUid(full),
 				url = full.toAbsolute(),
-				preview = jo.getStringOrNull("thumbnail")?.toAbsolute(),
+				preview = jo.getStringOrNull("thumbnail")?.toAbsolute()?.preferredThumbnailUrl(),
 				source = source,
 			),
 		)
+	}
+
+	/** The site offers matching JPEGs for its AVIF 240px thumbnails; JPEG remains Android API 21 compatible. */
+	private fun String.preferredThumbnailUrl(): String {
+		val suffixStart = indexOfFirst { it == '?' || it == '#' }
+		val path = if (suffixStart < 0) this else substring(0, suffixStart)
+		if (!path.endsWith(".avif", ignoreCase = true)) return this
+		val suffix = if (suffixStart < 0) "" else substring(suffixStart)
+		return path.dropLast(4) + ".jpg" + suffix
 	}
 
 	private fun ratingToken(rating: ContentRating?): String? = when (rating) {

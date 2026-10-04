@@ -90,13 +90,26 @@ internal abstract class WordpressVideoParser(
 		return url.takeIf { VIDEO_EXTENSION_REGEX.containsMatchIn(it.substringBefore('?')) }
 	}
 
+	private fun posterUrl(videoUrl: String): String? {
+		val path = videoUrl.substringBefore('?')
+		return path.takeIf { it.startsWith("https://$domain/wp-content/uploads/") }
+			?.replace(VIDEO_EXTENSION_REGEX, ".jpg")
+	}
+
+	private fun Element.coverUrl(): String? = sequenceOf("data-src", "data-lazy-src", "src")
+		.mapNotNull { attr(it).nullIfEmpty() }
+		.firstOrNull { !it.startsWith("data:", ignoreCase = true) }
+		?.toAbsoluteUrl(domain)
+
 	private fun Element.toManga(videoUrl: String): Manga {
 		val card = closest("article, li, .item, .post") ?: parent()
 		val title = card?.selectFirst("h1, h2, h3, h4, .entry-title")?.text()?.nullIfEmpty()
 			?: videoUrl.substringAfterLast('/').substringBeforeLast('.').replace('-', ' ').replace('_', ' ')
-		val cover = card?.selectFirst("img[src], img[data-src]")?.let { image ->
-			(image.attr("data-src").nullIfEmpty() ?: image.attr("src").nullIfEmpty())?.toAbsoluteUrl(domain)
-		}
+		// Current SFM Compile posts pair every same-host upload MP4 with a same-stem JPEG
+		// featured image. Prefer the card attribute when it is present, then use that published
+		// media layout instead of exposing a missing cover when the listing omits the image tag.
+		val cover = card?.selectFirst("img[data-src], img[data-lazy-src], img[src]")?.coverUrl()
+			?: posterUrl(videoUrl)
 		return Manga(
 			id = generateUid(videoUrl),
 			title = title,

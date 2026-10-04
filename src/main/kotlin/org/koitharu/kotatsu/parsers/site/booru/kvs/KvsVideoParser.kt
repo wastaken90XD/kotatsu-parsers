@@ -123,7 +123,7 @@ internal abstract class KvsVideoParser(
 		if (!relativeUrl.contains(VIDEO_PATH_REGEX)) return null
 		val url = relativeUrl.toAbsoluteUrl(domain)
 		val title = attr("title").trim().nullIfEmpty() ?: return null
-		val cover = selectFirst("img[src]")?.directUrl()
+		val cover = previewUrl(url)
 		return Manga(
 			id = generateUid(url),
 			title = title,
@@ -139,6 +139,12 @@ internal abstract class KvsVideoParser(
 			largeCoverUrl = cover,
 			source = source,
 		)
+	}
+
+	private fun previewUrl(postUrl: String): String? {
+		val id = POST_ID_REGEX.find(postUrl)?.groupValues?.get(1)?.toLongOrNull() ?: return null
+		val group = id / SCREENSHOT_GROUP_SIZE * SCREENSHOT_GROUP_SIZE
+		return "https://$domain/contents/videos_screenshots/$group/$id/preview_preview.mp4.jpg"
 	}
 
 	private fun parseMedia(document: Document): PostMedia {
@@ -172,6 +178,7 @@ internal abstract class KvsVideoParser(
 
 	private companion object {
 		const val PAGE_SIZE = 24
+		const val SCREENSHOT_GROUP_SIZE = 1_000L
 		val VIDEO_PATH_REGEX = Regex("/video/\\d+/")
 		val POST_ID_REGEX = Regex("/video/(\\d+)/")
 		val QUALITY_REGEX = Regex("(\\d+p)", RegexOption.IGNORE_CASE)

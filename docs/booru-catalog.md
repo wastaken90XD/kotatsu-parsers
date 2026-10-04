@@ -29,6 +29,73 @@ canonical post path with an opaque `rep` query value; resolving it emits one dir
 The original/full rendition is chapter zero, which preserves the existing resolver default. Poster
 representations (`thumb`, `thumb_small`, `thumb_tiny`) are excluded.
 
+## Round 2 thumbnail audit
+
+The rows below are source-side evidence gathered on 2026-10-05. `FETCHED` means a listing, API
+object, detail image, or both were fetched through the available read-only fetcher; it does **not**
+mean the Android image request or decoder was observed. Every `UNPROVEN` row still needs the
+corresponding device evidence described after the table.
+
+| Source / item | Exact emitted cover URL | Host | Source field or attribute | Format | Source-side status | Android status |
+|---|---|---|---|---|---|---|
+| Manebooru 4049780 | `https://static.manebooru.art/img/2026/10/4/4049780/thumb.jpg` | `static.manebooru.art` | API `representations.thumb` | JPEG | FETCHED: API object and image URL | UNPROVEN |
+| Manebooru 4049779 | `https://static.manebooru.art/img/2026/10/4/4049779/thumb.jpg` | `static.manebooru.art` | API `representations.thumb` | JPEG | FETCHED: API object | UNPROVEN |
+| Manebooru 4049778 | `https://static.manebooru.art/img/2026/10/4/4049778/thumb.jpg` | `static.manebooru.art` | API `representations.thumb` | JPEG | FETCHED: API object | UNPROVEN |
+| Ponerpics 7598623 | `https://ponerpics.org/img/2026/10/4/7598623/thumb.jpg` | `ponerpics.org` | API relative `representations.thumb`, resolved by `PhilomenaParser` | JPEG | FETCHED: API object; read-only image gateway returned site verification instead of the asset | UNPROVEN |
+| Ponerpics 7598622 | `https://ponerpics.org/img/2026/10/4/7598622/thumb.jpg` | `ponerpics.org` | API relative `representations.thumb`, resolved by `PhilomenaParser` | JPEG | FETCHED: API object | UNPROVEN |
+| Ponerpics 7598620 | `https://ponerpics.org/img/2026/10/4/7598620/thumb.jpg` | `ponerpics.org` | API relative `representations.thumb`, resolved by `PhilomenaParser` | JPEG | FETCHED: API object | UNPROVEN |
+| Genboard 385 | `https://img.genshiken-itb.org/data/preview/84/56/8456ec6c172e61828d5091e94e384ad4.jpg` | `img.genshiken-itb.org` | API relative `preview_url`, resolved by `BooruParser` | JPEG | FETCHED: API object and preview URL | UNPROVEN |
+| Genboard 384 | `https://img.genshiken-itb.org/data/preview/04/eb/04eb2f8d8803e89f263170e6be86b92c.jpg` | `img.genshiken-itb.org` | API relative `preview_url`, resolved by `BooruParser` | JPEG | FETCHED: API object | UNPROVEN |
+| Genboard 383 | `https://img.genshiken-itb.org/data/preview/87/ad/87ad0adf3e2bc71d50c6ed0dbc30ef85.jpg` | `img.genshiken-itb.org` | API relative `preview_url`, resolved by `BooruParser` | JPEG | FETCHED: API object | UNPROVEN |
+| SFM Compile Jack-o Valentine bulge ride | `https://sfmcompile.club/wp-content/uploads/2026/10/Jack-o-Valentine-bulge-ride.jpg` | `sfmcompile.club` | WordPress REST `yoast_head_json.og_image[0].url`; same-stem listing MP4 fallback | JPEG | FETCHED: post API, attachment API, and image URL | UNPROVEN |
+| SFM Compile Aunt Cass giving a paizuri pov | `https://sfmcompile.club/wp-content/uploads/2026/10/Aunt-Cass-giving-a-paizuri-pov.jpg` | `sfmcompile.club` | WordPress REST `yoast_head_json.og_image[0].url`; same-stem listing MP4 fallback | JPEG | FETCHED: post API and image URL | UNPROVEN |
+| SFM Compile Grace Crowne top down bottom up and creampie | `https://sfmcompile.club/wp-content/uploads/2026/10/Grace-Crowne-top-down-bottom-up-and-creampie.jpg` | `sfmcompile.club` | WordPress REST `yoast_head_json.og_image[0].url`; same-stem listing MP4 fallback | JPEG | FETCHED: post API and image URL | UNPROVEN |
+| Rule34Video 4644590 | `https://rule34video.com/contents/videos_screenshots/4644000/4644590/preview_preview.mp4.jpg` | `rule34video.com` | Detail `img[src*=/contents/videos_screenshots/]`; list URL uses the fetched KVS screenshot layout | JPEG | FETCHED: detail and image URL; listing `img[src]` was a `data:` placeholder in extraction | UNPROVEN |
+| Rule34Video 4644566 | `https://rule34video.com/contents/videos_screenshots/4644000/4644566/preview_preview.mp4.jpg` | `rule34video.com` | Detail `img[src*=/contents/videos_screenshots/]`; list URL uses the fetched KVS screenshot layout | JPEG | FETCHED: detail and image URL | UNPROVEN |
+| Rule34Video 4644466 | `https://rule34video.com/contents/videos_screenshots/4644000/4644466/preview_preview.mp4.jpg` | `rule34video.com` | Detail `img[src*=/contents/videos_screenshots/]`; list URL uses the fetched KVS screenshot layout | JPEG | FETCHED: detail and image URL | UNPROVEN |
+| Rule34Hentai 711143 | `https://rule34hentai.net/_thumbs/af53707bd5888c09546b76bab57e0299/thumb.jpg` | `rule34hentai.net` | Listing post-anchor `img[src]` | JPEG | FETCHED: listing and image URL | UNPROVEN |
+| Rule34Hentai 711141 | `https://rule34hentai.net/_thumbs/9bcd2e29cd9886824b10cc4848a87a01/thumb.jpg` | `rule34hentai.net` | Listing post-anchor `img[src]` | JPEG | FETCHED: listing and image URL | UNPROVEN |
+| Rule34Hentai 711139 | `https://rule34hentai.net/_thumbs/63021e5944ef2b429158cb40f46bcfcf/thumb.jpg` | `rule34hentai.net` | Listing post-anchor `img[src]` | JPEG | FETCHED: listing and image URL | UNPROVEN |
+| Wallhaven rqewvj | `https://th.wallhaven.cc/lg/rq/rqewvj.jpg` | `th.wallhaven.cc` | API `thumbs.large` | JPEG | FETCHED: listing API and image URL | UNPROVEN |
+| Wallhaven qrp5wr | `https://th.wallhaven.cc/lg/qr/qrp5wr.jpg` | `th.wallhaven.cc` | API `thumbs.large` | JPEG | FETCHED: listing API and image URL | UNPROVEN |
+| Wallhaven k8jrm1 | `https://th.wallhaven.cc/lg/k8/k8jrm1.jpg` | `th.wallhaven.cc` | API `thumbs.large` | JPEG | FETCHED: listing API and image URL | UNPROVEN |
+| Zerochan 4729591 | `https://s3.zerochan.net/240/41/41/4729591.jpg` | `s3.zerochan.net` | API `thumbnail` is documented by the parser; current public listing gave matching `.avif`, and the matching JPEG was fetched | JPEG | FETCHED: public listing AVIF and matching JPEG URL; API call itself requires configured source username | UNPROVEN |
+| Zerochan 4729590 | `https://s3.zerochan.net/240/40/41/4729590.jpg` | `s3.zerochan.net` | API `thumbnail` with AVIF-to-JPEG replacement | JPEG | FETCHED: public listing AVIF and matching JPEG URL | UNPROVEN |
+| Zerochan 4729589 | `https://s3.zerochan.net/240/39/41/4729589.jpg` | `s3.zerochan.net` | API `thumbnail` with AVIF-to-JPEG replacement | JPEG | FETCHED: public listing AVIF and matching JPEG URL | UNPROVEN |
+
+`WordpressVideoParser` now ignores `data:` card placeholders and, where a card does not expose an
+image, uses the verified same-stem JPEG layout of the source's WordPress featured media.
+`KvsVideoParser` now derives the exact KVS screenshot path from the listing post id instead of
+returning `null` after the listing's `data:` image placeholder. `Zerochan` now replaces only an
+AVIF thumbnail suffix with the matching JPEG suffix; fetched matching JPEGs exist for all three
+audited public-listing items. No image downloader, image-loader, TLS, certificate, dependency, or
+app-side header code was changed.
+
+### Header boundary and required device evidence
+
+The parsers repository proves request headers only for its parser HTTP calls, not for the app's
+separate cover-image loader. `BooruParser` attaches `Referer: https://<source-domain>/`, JSON
+`Accept`, `Accept-Language`, and `Connection`; this applies to Manebooru, Ponerpics, Genboard,
+and Rule34Hentai API/listing requests. Zerochan's API calls add its configured `User-Agent`,
+`Referer`, JSON `Accept`, `Accept-Language`, and `X-Requested-With`. No image-specific required
+header was exposed by the fetched image responses, and this repository contains no application
+image-loader implementation. Header propagation to the CDN/image request is therefore UNPROVEN.
+
+For each of the eight hosts above, clear Logcat, open the source's first listing page, and tap the
+first three entries. Collect the complete request/response lines for every exact URL in the table:
+
+```text
+adb logcat -c
+adb logcat -v threadtime | grep -Ei 'OkHttp|Cronet|Coil|Glide|ImageLoader|SSL|Handshake|certificate|manebooru|ponerpics|genshiken-itb|sfmcompile|rule34video|rule34hentai|wallhaven|zerochan'
+```
+
+The needed evidence is a line pair showing `GET <exact URL>` and its HTTP status plus content type,
+and any emitted `Referer`, `User-Agent`, or error line. In particular, retain any TLS handshake,
+certificate-chain, redirect, 401/403/429, CAPTCHA, decode, or unsupported-format error. If the
+installed app has no request logger, that absence cannot establish loading or headers; an app-side
+instrumentation change would need prior approval. No `BLOCKED-APP` host is established by this
+parser-side audit.
+
 ## Repaired or held sources
 
 | Site | Tier | Engine | Base | Quirks | Verdict | Evidence basis | Response excerpt (under 2 KB) |
