@@ -39,6 +39,12 @@ representations (`thumb`, `thumb_small`, `thumb_tiny`) are excluded.
 | Memebooru | — | Unknown | — | — | BLOCKED | FETCHED: Cloudflare returned a 522 origin timeout. | `522: Connection timed out … Host Error` |
 | Rainbooru | — | Unknown | — | — | BLOCKED | FETCHED: `rainbooru.org` returned a Cloudflare 522; `rainbooru.art` fetch failed without a response. | `522: Connection timed out … Host Error` |
 | Evbooru | — | Unknown | — | Q19 | REJECTED | FETCHED: the homepage rendered a parked-domain advertising page rather than a booru. | `resultsfindershub.com … blocked by an extension` |
+| Bronibooru | — | phpBB forum after redirect | — | — | REJECTED as a Danbooru candidate | FETCHED: `bronibooru.com` redirected to the Round Stable phpBB forum, which has no booru listing. | `The Round Stable - Index page … Powered by phpBB` |
+| Yukkuri | — | Unknown | — | — | BLOCKED; no code change | FETCHED: homepage request returned HTTP 500. | `Failed to fetch page (HTTP 500)` |
+| Dorkbooru | — | Unknown | — | — | BLOCKED; no code change | FETCHED: homepage request returned HTTP 500. | `Failed to fetch page (HTTP 500)` |
+| MSPAbooru | — | Gelbooru 0.2 | — | Q18 | BLOCKED; no code change | FETCHED: API list/search/detail/rating/end responses have image path components but omit direct URLs. DOCUMENTED: the shared Gelbooru base is frozen. | `{"directory":"15","hash":"…","image":"…png"}` |
+| Pbooru | — | Unknown | — | — | BLOCKED; no code change | FETCHED: homepage and listing requests returned HTTP 500. | `Failed to fetch page (HTTP 500)` |
+| Rule34Video | — | Kernel Video Sharing-style HTML | — | Q20, Q22 | BLOCKED; no code change | FETCHED: newest pages, search, empty search, terminal page, detail, and time-signed direct MP4 download links. Search pagination is JavaScript-block based; direct attempts at its async routes returned HTTP 500. | `…/get_file/…/4643286_1080p.mp4/?v-acctoken=…` |
 
 ## Existing sources not reassessed on this branch
 
