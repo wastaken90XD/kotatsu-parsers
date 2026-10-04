@@ -17,8 +17,12 @@ its response itself says that the site or booru does not exist.
 
 The sandbox fetcher can only issue GET requests. Its GET attempts for a Manebooru WebM and a
 Ponerpics thumbnail returned HTTP 500, so they are not treated as media availability evidence.
-The parser uses each API record's direct medium rendition for `video/*` records, as requested;
-the current `MangaPage` contract carries one direct URL and no alternate-rendition collection.
+
+Philomena `animated` records and `webm`/`mp4` records now expose `full`, `large`, `medium`,
+`small`, and `tall` direct representations as rank-ordered chapters. Each chapter carries the
+canonical post path with an opaque `rep` query value; resolving it emits one direct `MangaPage`.
+The original/full rendition is chapter zero, which preserves the existing resolver default. Poster
+representations (`thumb`, `thumb_small`, `thumb_tiny`) are excluded.
 
 ## Repaired or held sources
 
