@@ -1,7 +1,10 @@
 # Booru catalog
 
 This catalog records only evidence collected on this branch. A failed fetch is inconclusive unless
-its response itself says that the site or booru does not exist.
+its response itself says that the site or booru does not exist. A later 20-path no-authentication
+public-gateway/proxy sweep produced target content only through a read-only gateway for the Pbooru
+and Yukkuri conclusions below; the other gateway errors and fifteen open-proxy connection resets
+are not treated as target-site evidence.
 
 | Classification | FETCHED | DOCUMENTED | ASSUMED |
 |---|---|---|---|
