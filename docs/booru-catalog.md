@@ -128,6 +128,7 @@ never has a duration property.
 
 | Site | Tier | Engine | Base | Quirks | Verdict | Evidence basis | Response excerpt (under 2 KB) |
 |---|---|---|---|---|---|---|---|
+| Anime-Pictures | C | API v3 plus HTML | — | Android API 21 preview format | HELD; no parser added | FETCHED: API page `0`, HTML page `2`, two-tag and empty HTML searches, detail `931283`, terminal page `8356`, and empty page `8357`. The live listing/detail preview is `opreviews.anime-pictures.net/..._cp.avif`; the source detail exposes a direct original JPEG link. Replacing `_cp.avif` with `.jpg` or `.webp` was not supported by the available read-only fetcher. An Android API 21-compatible thumbnail would require app-side AVIF decode support or a verified source still-image alternative, so Task C stops here. | `{"posts_per_page":80,"page_number":0,"posts":[{"id":931283,"ext":".jpg"}]}`; listing: `https://opreviews.anime-pictures.net/096/096de6229ae2b67d2c21603b877efe60_cp.avif` |
 | MoeBooru | — | Gelbooru 0.1 network endpoint | `MoebooruParser` registration | Q11 | BROKEN | FETCHED: the endpoint rendered a nonexistence page. | `# Booru moe does not exist` |
 | 8booru | — | Gelbooru 0.1 network endpoint | `GelbooruParser` registration | Q11 | BROKEN | FETCHED: the endpoint rendered a nonexistence page. | `# Booru 8booru does not exist` |
 | Behoimi | — | Moebooru (task brief) | `MoebooruParser` | Q19 | BLOCKED; no code change | FETCHED: homepage fetch returned HTTP 500. DOCUMENTED: the task brief described a parking-range lead. | `Failed to fetch page (HTTP 500)` |
