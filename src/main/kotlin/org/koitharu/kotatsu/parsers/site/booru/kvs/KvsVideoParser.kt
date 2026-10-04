@@ -123,6 +123,7 @@ internal abstract class KvsVideoParser(
 		if (!relativeUrl.contains(VIDEO_PATH_REGEX)) return null
 		val url = relativeUrl.toAbsoluteUrl(domain)
 		val title = attr("title").trim().nullIfEmpty() ?: return null
+		val duration = durationDescription(text())
 		val cover = previewUrl(url)
 		return Manga(
 			id = generateUid(url),
@@ -137,8 +138,29 @@ internal abstract class KvsVideoParser(
 			state = null,
 			authors = emptySet(),
 			largeCoverUrl = cover,
+			description = duration,
 			source = source,
 		)
+	}
+
+	private fun durationDescription(text: String): String? {
+		val match = DURATION_REGEX.find(text) ?: return null
+		val hours = match.groupValues[1].toLongOrNull() ?: 0L
+		val minutes = match.groupValues[2].toLongOrNull() ?: return null
+		val seconds = match.groupValues[3].toLongOrNull() ?: return null
+		return formatDuration(hours * 3_600L + minutes * 60L + seconds)
+	}
+
+	private fun formatDuration(totalSeconds: Long): String {
+		val hours = totalSeconds / 3_600L
+		val minutes = totalSeconds % 3_600L / 60L
+		val seconds = totalSeconds % 60L
+		val value = if (hours > 0L) {
+			String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds)
+		} else {
+			String.format(Locale.ROOT, "%d:%02d", minutes, seconds)
+		}
+		return "Duration: $value"
 	}
 
 	private fun previewUrl(postUrl: String): String? {
@@ -182,5 +204,6 @@ internal abstract class KvsVideoParser(
 		val VIDEO_PATH_REGEX = Regex("/video/\\d+/")
 		val POST_ID_REGEX = Regex("/video/(\\d+)/")
 		val QUALITY_REGEX = Regex("(\\d+p)", RegexOption.IGNORE_CASE)
+		val DURATION_REGEX = Regex("(?<!\\d)(?:(\\d+):)?(\\d{1,2}):(\\d{2})(?!\\d)")
 	}
 }

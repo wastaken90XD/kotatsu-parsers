@@ -81,6 +81,9 @@ internal abstract class PhilomenaParser(
 	/** CDN domain if images are hosted off a different host (e.g. "cdn.ponybooru.org", "furrycdn.org"). */
 	protected open val cdnDomain: String? = null
 
+	/** Enables factual API `duration` rendering for sources that opt into the Round 2 video contract. */
+	protected open val includeVideoDuration: Boolean = false
+
 	private val mediaCache = ConcurrentHashMap<Long, PostMedia>()
 
 	init {
@@ -117,8 +120,9 @@ internal abstract class PhilomenaParser(
 	override suspend fun getDetails(manga: Manga): Manga {
 		val details = super.getDetails(manga)
 		val media = mediaCache[postId(manga.url)] ?: return details
+		val duration = if (includeVideoDuration && media.isVideo) media.durationSeconds?.let(::durationDescription) else null
 		if (!media.isVideo || media.variants.isEmpty()) {
-			return details
+			return duration?.let { details.copy(description = "$it<br>${details.description.orEmpty()}") } ?: details
 		}
 		// Q22: chapters are stable, selectable direct renditions; chapter zero is the original.
 		val chapters = media.variants.entries.mapIndexed { index, (tier, url) ->
@@ -134,7 +138,10 @@ internal abstract class PhilomenaParser(
 				source = source,
 			)
 		}
-		return details.copy(chapters = chapters)
+		return details.copy(
+			description = duration?.let { "$it<br>${details.description.orEmpty()}" } ?: details.description,
+			chapters = chapters,
+		)
 	}
 
 	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
@@ -243,7 +250,8 @@ internal abstract class PhilomenaParser(
 		REPRESENTATION_TIERS.forEach { tier ->
 			resolveUrl(reps?.getStringOrNull(tier))?.let { variants[tier] = it }
 		}
-		mediaCache[id] = PostMedia(isVideo, variants)
+		val durationSeconds = optDouble("duration", Double.NaN).takeIf { it.isFinite() && it >= 0.0 }
+		mediaCache[id] = PostMedia(isVideo, variants, durationSeconds)
 		val fileUrl = if (isVideo) {
 			variants["full"] ?: variants.values.firstOrNull() ?: resolveUrl(viewUrl)
 		} else {
@@ -304,6 +312,19 @@ internal abstract class PhilomenaParser(
 			width = getIntOrDefault("width", 0),
 			height = getIntOrDefault("height", 0),
 		)
+	}
+
+	private fun durationDescription(seconds: Double): String {
+		val rounded = Math.round(seconds).coerceAtLeast(0L)
+		val hours = rounded / 3_600L
+		val minutes = rounded % 3_600L / 60L
+		val remainingSeconds = rounded % 60L
+		val value = if (hours > 0L) {
+			String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, remainingSeconds)
+		} else {
+			String.format(Locale.ROOT, "%d:%02d", minutes, remainingSeconds)
+		}
+		return "Duration: $value"
 	}
 
 	private fun resolveUrl(url: String?): String? {
@@ -368,6 +389,7 @@ internal abstract class PhilomenaParser(
 	private data class PostMedia(
 		val isVideo: Boolean,
 		val variants: LinkedHashMap<String, String>,
+		val durationSeconds: Double?,
 	)
 
 	companion object {

@@ -71,6 +71,12 @@ AVIF thumbnail suffix with the matching JPEG suffix; fetched matching JPEGs exis
 audited public-listing items. No image downloader, image-loader, TLS, certificate, dependency, or
 app-side header code was changed.
 
+The fetched Philomena video records are a separate source limitation: Manebooru `4049776` and
+Ponerpics `7598612` expose `representations.thumb` only as WebM, not as a still-image poster. No
+JPEG, PNG, or WebP replacement was present in either fetched API object, so no guessed alternate
+URL was emitted. That video-cover decoding outcome remains UNPROVEN on Android and is not treated
+as a source-verified thumbnail success.
+
 ### Header boundary and required device evidence
 
 The parsers repository proves request headers only for its parser HTTP calls, not for the app's
@@ -95,6 +101,28 @@ certificate-chain, redirect, 401/403/429, CAPTCHA, decode, or unsupported-format
 installed app has no request logger, that absence cannot establish loading or headers; an app-side
 instrumentation change would need prior approval. No `BLOCKED-APP` host is established by this
 parser-side audit.
+
+## Round 2 duration audit
+
+`Manga` has a nullable `description`; `MangaChapter` has no duration field. No model was changed.
+Where a scoped video source supplies duration, the parser renders exactly one leading
+`Duration: m:ss` or `Duration: h:mm:ss` description line using rounded whole seconds and
+`Locale.ROOT` decimal formatting. It is attached to the manga, not to each quality chapter. No
+media was downloaded or measured; a HEAD request would not have been treated as duration evidence.
+
+| Source | Fetched source evidence | Parser result | Status |
+|---|---|---|---|
+| Manebooru / Philomena | Image `4049776` API: `"mime_type":"video/webm"`, `"duration":5.109` | `Duration: 0:05` | Implemented for Manebooru video records with a finite API duration |
+| Ponerpics / Philomena | `q=webm` API image `7598612`: `"mime_type":"video/webm"`, `"duration":240.261` | `Duration: 4:00` | Implemented for Ponerpics video records with a finite API duration; image `21` explicitly returned `"duration":null` and stays without a duration |
+| Rule34Video / KVS | Listing/detail for `4644590`, `4644566`, `4644466` display `0:57`, `0:17`, `1:00` | `Duration: 0:57`, `Duration: 0:17`, `Duration: 1:00` | Implemented from the listing-card time token; one manga description is retained when quality chapters are built |
+| Rule34Hentai / Shimmie | Listing image alt text supplies `1200x1200, 60.3s`, `1000x1280, 33.6s`, and `960x540, 24s` for `711143`, `711141`, and `711139` | `Duration: 1:00`, `Duration: 0:34`, `Duration: 0:24` | Implemented from the source alt text, rounded to the nearest whole second |
+| SFM Compile | Current listing and WordPress post/featured-media responses expose MP4 and JPEG media but no factual video-duration field. `twitter:data2` is an estimated reading time, not media duration. | No duration | Intentionally omitted |
+| Wallhaven | Fetched v1 listing/detail objects have image dimensions, file size, and `file_type`, but no duration field; this is an image-only source. | No duration | Intentionally omitted |
+
+A local source-tree search found no parser-side `duration` read in the frozen Danbooru, Gelbooru,
+Moebooru, or e621ng families. No frozen source file was changed and no frozen-source live request
+was made for this duration work. This is a local-code result, not a claim that every upstream API
+never has a duration property.
 
 ## Repaired or held sources
 

@@ -8,4 +8,6 @@ import org.koitharu.kotatsu.parsers.site.booru.philomena.PhilomenaParser
 
 @MangaSourceParser("MANEBOORU", "Manebooru", "en", ContentType.BOORU)
 internal class Manebooru(context: MangaLoaderContext) :
-	PhilomenaParser(context, MangaParserSource.MANEBOORU, "manebooru.art")
+	PhilomenaParser(context, MangaParserSource.MANEBOORU, "manebooru.art") {
+	override val includeVideoDuration: Boolean = true
+}

@@ -6,11 +6,13 @@ import org.jsoup.nodes.Element
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.config.ConfigKey
 import org.koitharu.kotatsu.parsers.model.ContentRating
+import org.koitharu.kotatsu.parsers.model.Manga
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaTag
 import org.koitharu.kotatsu.parsers.site.booru.BooruParser
 import org.koitharu.kotatsu.parsers.util.*
 import java.util.EnumSet
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -35,6 +37,7 @@ internal abstract class ShimmieParser(
 	override val supportedRatings = EnumSet.of(ContentRating.ADULT)
 
 	private val listMediaCache = ConcurrentHashMap<Long, BooruPost>()
+	private val durationCache = ConcurrentHashMap<Long, String>()
 
 	init {
 		paginator.firstPage = 1
@@ -44,10 +47,20 @@ internal abstract class ShimmieParser(
 	override suspend fun fetchPosts(page: Int, tags: String): List<BooruPost> {
 		val document = webClient.httpGet(listUrl(page, tags)).parseHtml()
 		return document.select("a[href*=/post/view/]").mapNotNull { anchor ->
-			anchor.selectFirst("img[src]")?.let { image -> parseListPost(anchor, image) }
+			anchor.selectFirst("img[src]")?.let { image ->
+				parseListPost(anchor, image)?.also { post ->
+					durationDescription(image.attr("alt"))?.let { durationCache[post.id] = it }
+				}
+			}
 		}.also { posts ->
 			posts.forEach { post -> listMediaCache[post.id] = post }
 		}
+	}
+
+	override suspend fun getDetails(manga: Manga): Manga {
+		val details = super.getDetails(manga)
+		val duration = durationCache[postId(manga.url)] ?: return details
+		return details.copy(description = "$duration<br>${details.description.orEmpty()}")
 	}
 
 	override suspend fun fetchPost(id: Long): BooruPost {
@@ -113,6 +126,20 @@ internal abstract class ShimmieParser(
 		)
 	}
 
+	private fun durationDescription(alt: String): String? {
+		val seconds = DURATION_SECONDS_REGEX.find(alt)?.groupValues?.get(1)?.toDoubleOrNull() ?: return null
+		val rounded = Math.round(seconds).coerceAtLeast(0L)
+		val hours = rounded / 3_600L
+		val minutes = rounded % 3_600L / 60L
+		val remainingSeconds = rounded % 60L
+		val value = if (hours > 0L) {
+			String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, remainingSeconds)
+		} else {
+			String.format(Locale.ROOT, "%d:%02d", minutes, remainingSeconds)
+		}
+		return "Duration: $value"
+	}
+
 	private fun originalUrl(hash: String, id: Long, tags: String, format: String): String = HttpUrl.Builder()
 		.scheme("https")
 		.host(domain)
@@ -133,5 +160,6 @@ internal abstract class ShimmieParser(
 		val THUMB_HASH_REGEX = Regex("/_thumbs/([^/]+)/")
 		val FILE_EXTENSION_REGEX = Regex("[a-z0-9]{2,5}")
 		val DIMENSIONS_REGEX = Regex("(\\d+)x(\\d+)")
+		val DURATION_SECONDS_REGEX = Regex("(\\d+(?:\\.\\d+)?)s(?:\\s|$)")
 	}
 }
