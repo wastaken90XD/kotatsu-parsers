@@ -13,6 +13,7 @@ its response itself says that the site or booru does not exist.
 |---|---|---|---|---|---|---|---|
 | Manebooru | A | Philomena v1 | `PhilomenaParser` | Q7, Q8, Q22 | ADDED; device media check pending | FETCHED: homepage, API pages 1 and 2, two-tag search, empty search, detail, rating search, last and past-last pages. DOCUMENTED: user stated the existing single-direct-URL video contract applies to comparable boorus. | `{"images":[{"id":4049776,"mime_type":"video/webm","representations":{"full":"…/4049776.webm","medium":"…/4049776/medium.webm"}}],"total":1002688}` |
 | Ponerpics | A | Philomena v1 | `PhilomenaParser` | Q7, Q8, Q22 | ADDED; device media check pending | FETCHED: homepage, API pages 1 and 2, two-tag search, empty search, detail, rating search, last and past-last pages. DOCUMENTED: user stated the existing single-direct-URL video contract applies to comparable boorus. | `{"images":[{"id":21,"mime_type":"image/gif","representations":{"mp4":"…/21/full.mp4","webm":"…/21/full.webm"}}],"total":2965342}` |
+| Genboard | A | Moebooru 6.0.0 | `MoebooruParser` | Q7 | ADDED | FETCHED: homepage, API pages 1 and 2, two-tag search, empty search, detail, safe-rating search, last and past-last pages. | `[{"id":385,"tags":"big_hero_6_help_brain_surgery","file_url":"/data/image/84/56/…jpg","rating":"s"}]` |
 
 The sandbox fetcher can only issue GET requests. Its GET attempts for a Manebooru WebM and a
 Ponerpics thumbnail returned HTTP 500, so they are not treated as media availability evidence.
@@ -31,6 +32,7 @@ the current `MangaPage` contract carries one direct URL and no alternate-renditi
 | Tantabus | — | Chevereto | — | — | REJECTED as a Philomena candidate | FETCHED: homepage identifies itself as Chevereto image hosting, not the expected engine. | `Chevereto image hosting — Upload and share your media` |
 | Memebooru | — | Unknown | — | — | BLOCKED | FETCHED: Cloudflare returned a 522 origin timeout. | `522: Connection timed out … Host Error` |
 | Rainbooru | — | Unknown | — | — | BLOCKED | FETCHED: `rainbooru.org` returned a Cloudflare 522; `rainbooru.art` fetch failed without a response. | `522: Connection timed out … Host Error` |
+| Evbooru | — | Unknown | — | Q19 | REJECTED | FETCHED: the homepage rendered a parked-domain advertising page rather than a booru. | `resultsfindershub.com … blocked by an extension` |
 
 ## Existing sources not reassessed on this branch
 
