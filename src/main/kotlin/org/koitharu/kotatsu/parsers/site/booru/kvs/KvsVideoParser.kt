@@ -83,7 +83,7 @@ internal abstract class KvsVideoParser(
 				uploadDate = 0L,
 				branch = null,
 				source = source,
-			),
+			)
 		}
 		return manga.copy(
 			title = title,
