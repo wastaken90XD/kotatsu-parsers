@@ -9,6 +9,9 @@ import org.koitharu.kotatsu.parsers.config.ConfigKey
 import org.koitharu.kotatsu.parsers.exception.AuthRequiredException
 import org.koitharu.kotatsu.parsers.exception.ParseException
 import org.koitharu.kotatsu.parsers.model.ContentRating
+import org.koitharu.kotatsu.parsers.model.Manga
+import org.koitharu.kotatsu.parsers.model.MangaChapter
+import org.koitharu.kotatsu.parsers.model.MangaPage
 import org.koitharu.kotatsu.parsers.model.MangaParserSource
 import org.koitharu.kotatsu.parsers.model.MangaTag
 import org.koitharu.kotatsu.parsers.site.booru.BooruParser
@@ -77,6 +80,11 @@ internal abstract class PhilomenaParser(
 	/** CDN domain if images are hosted off a different host (e.g. "cdn.ponybooru.org", "furrycdn.org"). */
 	protected open val cdnDomain: String? = null
 
+	/** Enables factual API `duration` rendering for sources that opt into the Round 2 video contract. */
+	protected open val includeVideoDuration: Boolean = false
+
+	private val mediaCache = LruCache<Long, PostMedia>(MEDIA_CACHE_SIZE)
+
 	init {
 		paginator.firstPage = 1
 		searchPaginator.firstPage = 1
@@ -106,6 +114,47 @@ internal abstract class PhilomenaParser(
 		ContentRating.SAFE -> "safe"
 		ContentRating.SUGGESTIVE -> "suggestive"
 		ContentRating.ADULT -> "explicit"
+	}
+
+	override suspend fun getDetails(manga: Manga): Manga {
+		val details = super.getDetails(manga)
+		val media = mediaCache[postId(manga.url)] ?: return details
+		val duration = if (includeVideoDuration && media.isVideo) media.durationSeconds?.let(::durationDescription) else null
+		if (!media.isVideo || media.variants.isEmpty()) {
+			return duration?.let { details.copy(description = "$it<br>${details.description.orEmpty()}") } ?: details
+		}
+		// Q22: chapters are stable, selectable direct renditions; chapter zero is the original.
+		val chapters = media.variants.entries.mapIndexed { index, (tier, url) ->
+			MangaChapter(
+				id = generateUid("${manga.url}?rep=$tier"),
+				title = representationTitle(tier, url),
+				number = index.toFloat(),
+				volume = 0,
+				url = "${manga.url.substringBefore('?')}?rep=$tier",
+				scanlator = null,
+				uploadDate = 0L,
+				branch = null,
+				source = source,
+			)
+		}
+		return details.copy(
+			description = duration?.let { "$it<br>${details.description.orEmpty()}" } ?: details.description,
+			chapters = chapters,
+		)
+	}
+
+	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
+		val tier = chapter.url.substringAfter('?').split('&')
+			.firstOrNull { it.startsWith("rep=") }
+			?.substringAfter("rep=")
+			?: return super.getPages(chapter)
+		val post = mediaCache[postId(chapter.url)] ?: run {
+			fetchPost(postId(chapter.url))
+			mediaCache[postId(chapter.url)]
+		}
+		val fileUrl = post?.variants?.get(tier)
+			?: throw ParseException("Video representation '$tier' is unavailable", chapter.url)
+		return listOf(MangaPage(generateUid(fileUrl), fileUrl, null, source))
 	}
 
 	override suspend fun fetchPosts(page: Int, tags: String): List<BooruPost> {
@@ -191,8 +240,20 @@ internal abstract class PhilomenaParser(
 	}
 
 	protected open fun JSONObject.toBooruPost(id: Long): BooruPost {
-		val fileUrl = resolveUrl(getStringOrNull("view_url") ?: getStringOrNull("image") ?: getStringOrNull("file_url"))
 		val reps = optJSONObject("representations")
+		val viewUrl = getStringOrNull("view_url") ?: getStringOrNull("image") ?: getStringOrNull("file_url")
+		val format = getStringOrNull("format")?.lowercase(Locale.ROOT)
+		val isAnimated = optBoolean("animated")
+		val isVideo = isAnimated || format in VIDEO_FORMATS ||
+			getStringOrNull("mime_type")?.startsWith("video/", ignoreCase = true) == true
+		val variants = videoVariants(reps, isAnimated)
+		val durationSeconds = optDouble("duration", Double.NaN).takeIf { it.isFinite() && it >= 0.0 }
+		mediaCache[id] = PostMedia(isVideo, variants, durationSeconds)
+		val fileUrl = if (isVideo) {
+			variants["full"] ?: variants.values.firstOrNull() ?: resolveUrl(viewUrl)
+		} else {
+			resolveUrl(viewUrl)
+		}
 		val previewUrl = resolveUrl(
 			reps?.getStringOrNull("thumb")
 				?: reps?.getStringOrNull("thumb_small")
@@ -250,6 +311,37 @@ internal abstract class PhilomenaParser(
 		)
 	}
 
+	/**
+	 * Philomena currently serializes each representation as a URL string. The API records carry
+	 * width and height for the source image, not for individual representations, so their actual
+	 * per-tier dimensions are unavailable. Keep the source's documented descending fallback order.
+	 */
+	private fun videoVariants(representations: JSONObject?, isAnimated: Boolean): LinkedHashMap<String, String> {
+		val variants = LinkedHashMap<String, String>()
+		if (isAnimated) {
+			VIDEO_FILE_TIERS.forEach { tier ->
+				resolveUrl(representations?.getStringOrNull(tier))?.let { variants[tier] = it }
+			}
+		}
+		SIZE_REPRESENTATION_TIERS.forEach { tier ->
+			resolveUrl(representations?.getStringOrNull(tier))?.let { variants[tier] = it }
+		}
+		return variants
+	}
+
+	private fun durationDescription(seconds: Double): String {
+		val rounded = Math.round(seconds).coerceAtLeast(0L)
+		val hours = rounded / 3_600L
+		val minutes = rounded % 3_600L / 60L
+		val remainingSeconds = rounded % 60L
+		val value = if (hours > 0L) {
+			String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, remainingSeconds)
+		} else {
+			String.format(Locale.ROOT, "%d:%02d", minutes, remainingSeconds)
+		}
+		return "Duration: $value"
+	}
+
 	private fun resolveUrl(url: String?): String? {
 		if (url == null) return null
 		if (url.startsWith("http")) return url
@@ -257,12 +349,24 @@ internal abstract class PhilomenaParser(
 		return "https://$cdn${if (url.startsWith('/')) url else "/$url"}"
 	}
 
+	private fun representationTitle(tier: String, url: String): String {
+		val label = when (tier) {
+			"full" -> "Original"
+			"mp4" -> "MP4"
+			"webm" -> "WebM"
+			else -> tier.replaceFirstChar { it.titlecase(Locale.ROOT) }
+		}
+		if (tier in VIDEO_FILE_TIERS) return label
+		val format = url.substringBefore('?').substringAfterLast('.', "Video").uppercase(Locale.ROOT)
+		return "$label ($format)"
+	}
+
 	private fun ratingFromNames(tagNames: List<String>): String? {
 		val tags = tagNames.asSequence().map { it.trim().lowercase(Locale.ROOT) }.toSet()
 		return when {
 			"explicit" in tags -> "explicit"
 			"questionable" in tags -> "questionable"
-			"suggestive" in tags -> "suggestive"
+			"suggestive" in tags || "sensitive" in tags -> "suggestive"
 			"safe" in tags -> "safe"
 			else -> null
 		}
@@ -300,7 +404,18 @@ internal abstract class PhilomenaParser(
 		}
 	}
 
+	private data class PostMedia(
+		val isVideo: Boolean,
+		val variants: LinkedHashMap<String, String>,
+		val durationSeconds: Double?,
+	)
+
 	companion object {
+		const val MEDIA_CACHE_SIZE = 32
+		private val VIDEO_FILE_TIERS = listOf("mp4", "webm")
+		private val SIZE_REPRESENTATION_TIERS = listOf("full", "large", "tall", "medium", "small")
+		private val VIDEO_FORMATS = setOf("webm", "mp4")
+
 		/**
 		 * Tags that represent content ratings, not descriptive tags; they must not appear in the
 		 * filter tag list so users pick rating via the standard [ContentRating] control instead.
