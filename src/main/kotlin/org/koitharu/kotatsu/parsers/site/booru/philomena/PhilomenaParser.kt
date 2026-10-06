@@ -243,12 +243,10 @@ internal abstract class PhilomenaParser(
 		val reps = optJSONObject("representations")
 		val viewUrl = getStringOrNull("view_url") ?: getStringOrNull("image") ?: getStringOrNull("file_url")
 		val format = getStringOrNull("format")?.lowercase(Locale.ROOT)
-		val isVideo = optBoolean("animated") || format in VIDEO_FORMATS ||
+		val isAnimated = optBoolean("animated")
+		val isVideo = isAnimated || format in VIDEO_FORMATS ||
 			getStringOrNull("mime_type")?.startsWith("video/", ignoreCase = true) == true
-		val variants = LinkedHashMap<String, String>()
-		REPRESENTATION_TIERS.forEach { tier ->
-			resolveUrl(reps?.getStringOrNull(tier))?.let { variants[tier] = it }
-		}
+		val variants = videoVariants(reps, isAnimated)
 		val durationSeconds = optDouble("duration", Double.NaN).takeIf { it.isFinite() && it >= 0.0 }
 		mediaCache[id] = PostMedia(isVideo, variants, durationSeconds)
 		val fileUrl = if (isVideo) {
@@ -313,6 +311,24 @@ internal abstract class PhilomenaParser(
 		)
 	}
 
+	/**
+	 * Philomena currently serializes each representation as a URL string. The API records carry
+	 * width and height for the source image, not for individual representations, so their actual
+	 * per-tier dimensions are unavailable. Keep the source's documented descending fallback order.
+	 */
+	private fun videoVariants(representations: JSONObject?, isAnimated: Boolean): LinkedHashMap<String, String> {
+		val variants = LinkedHashMap<String, String>()
+		if (isAnimated) {
+			VIDEO_FILE_TIERS.forEach { tier ->
+				resolveUrl(representations?.getStringOrNull(tier))?.let { variants[tier] = it }
+			}
+		}
+		SIZE_REPRESENTATION_TIERS.forEach { tier ->
+			resolveUrl(representations?.getStringOrNull(tier))?.let { variants[tier] = it }
+		}
+		return variants
+	}
+
 	private fun durationDescription(seconds: Double): String {
 		val rounded = Math.round(seconds).coerceAtLeast(0L)
 		val hours = rounded / 3_600L
@@ -336,8 +352,11 @@ internal abstract class PhilomenaParser(
 	private fun representationTitle(tier: String, url: String): String {
 		val label = when (tier) {
 			"full" -> "Original"
+			"mp4" -> "MP4"
+			"webm" -> "WebM"
 			else -> tier.replaceFirstChar { it.titlecase(Locale.ROOT) }
 		}
+		if (tier in VIDEO_FILE_TIERS) return label
 		val format = url.substringBefore('?').substringAfterLast('.', "Video").uppercase(Locale.ROOT)
 		return "$label ($format)"
 	}
@@ -392,7 +411,9 @@ internal abstract class PhilomenaParser(
 	)
 
 	companion object {
-		private val REPRESENTATION_TIERS = listOf("full", "large", "medium", "small", "tall")
+		const val MEDIA_CACHE_SIZE = 32
+		private val VIDEO_FILE_TIERS = listOf("mp4", "webm")
+		private val SIZE_REPRESENTATION_TIERS = listOf("full", "large", "tall", "medium", "small")
 		private val VIDEO_FORMATS = setOf("webm", "mp4")
 
 		/**

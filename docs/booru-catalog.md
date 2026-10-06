@@ -137,6 +137,17 @@ never has a duration property.
 
 The cache implementation is a synchronized, access-ordered `LinkedHashMap` with `removeEldestEntry` at 32 entries. No dependency, image-loader, TLS, certificate, or app-side change was made.
 
+## Parser follow-up: Philomena animated rendition order
+
+| Area | FETCHED | DOCUMENTED | ASSUMED |
+|---|---|---|---|
+| Manebooru GIF representations | `GET /api/v1/json/images/4049797` returned `animated:true`, `format:"gif"`, root `width:682`, `height:682`, and string URL keys `full`, `large`, `medium`, `mp4`, `small`, `tall`, `thumb`, `thumb_small`, `thumb_tiny`, and `webm`. The per-representation values are URL strings only; they provide no individual tier width or height. | Animated records with these keys now expose `MP4`, then `WebM`, then `Original`, `Large`, `Tall`, `Medium`, and `Small`. | Android decode and playback are UNPROVEN. |
+| Ponerpics GIF representations | `GET /api/v1/json/images/7599204` returned `animated:true`, `format:"gif"`, root `width:1024`, `height:745`, and the same string URL keys, including `mp4` and `webm`; record `21` independently confirms that key set. No individual tier dimensions were in either response. | The same MP4-first/WebM-second ordering applies. Thumbnail tiers remain covers only and are never chapters. | Android decode and playback are UNPROVEN. |
+| WebM records | Manebooru `4049776` reported `mime_type:"video/webm"`, root `1280x720`, with `full`, `large`, `medium`, `small`, `tall`, and thumbnail tiers but no separate `mp4`/`webm` representation keys. Ponerpics `7598612` reported the same standard tier set at root `640x480`. | When individual representation dimensions are absent, the required fallback is `full`, `large`, `tall`, `medium`, `small`; because neither fetched WebM object has explicit codec keys, those are its chapters. | The source’s actual transformed-tier pixel dimensions are not available in the fetched JSON. |
+| Static records | No static-image contract was changed. | Direct MP4/WebM keys are considered only for `animated:true` records; static image behavior stays on the existing image path. | No claim is made about unobserved API variants. |
+
+No thumb, `thumb_small`, or `thumb_tiny` representation is exposed as a media chapter. The code uses the documented fallback because the fetched API represents tiers as URL strings rather than dimension-bearing objects.
+
 ## Repaired or held sources
 
 | Site | Tier | Engine | Base | Quirks | Verdict | Evidence basis | Response excerpt (under 2 KB) |
