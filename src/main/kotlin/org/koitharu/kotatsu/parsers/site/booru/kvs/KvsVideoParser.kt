@@ -10,7 +10,6 @@ import org.koitharu.kotatsu.parsers.core.PagedMangaParser
 import org.koitharu.kotatsu.parsers.model.*
 import org.koitharu.kotatsu.parsers.util.*
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Parser for Kernel Video Sharing-style sites with direct, time-signed MP4 download links.
@@ -36,7 +35,7 @@ internal abstract class KvsVideoParser(
 	isSearchWithFiltersSupported = true,
 )
 
-	private val mediaCache = ConcurrentHashMap<Long, PostMedia>()
+	private val mediaCache = LruCache<Long, PostMetadata>(MEDIA_CACHE_SIZE)
 
 	init {
 		paginator.firstPage = 1
@@ -64,15 +63,18 @@ internal abstract class KvsVideoParser(
 		val id = postId(manga.url)
 		val document = webClient.httpGet(manga.url).parseHtml()
 		val media = parseMedia(document)
-		mediaCache[id] = media
 		val title = document.selectFirst("h1")?.text()?.trim()?.nullIfEmpty() ?: manga.title
+		val metadata = PostMetadata(title, media.variants.map { variant ->
+			VideoVariantLabel(variant.key, variant.label)
+		})
+		mediaCache[id] = metadata
 		val tags = document.select("a[href*=/tags/]").mapNotNull { element ->
 			element.text().trim().nullIfEmpty()?.let { name ->
 				MangaTag(name, name.lowercase(Locale.ROOT), source)
 			}
 		}.toSet()
 		val cover = document.selectFirst("img[src*=/contents/videos_screenshots/]")?.directUrl()
-		val chapters = media.variants.mapIndexed { index, variant ->
+		val chapters = metadata.variants.mapIndexed { index, variant ->
 			MangaChapter(
 				id = generateUid("${manga.url}?quality=${variant.key}"),
 				title = variant.label,
@@ -97,9 +99,12 @@ internal abstract class KvsVideoParser(
 	override suspend fun getPages(chapter: MangaChapter): List<MangaPage> {
 		val id = postId(chapter.url)
 		val key = chapter.url.substringAfter("quality=", "").substringBefore('&')
-		val media = mediaCache[id] ?: webClient.httpGet(chapter.url.substringBefore('?')).parseHtml()
-			.let(::parseMedia)
-			.also { mediaCache[id] = it }
+		// KVS signs every /get_file/ URL. Resolve the selected quality from a fresh post response
+		// rather than reusing a URL that may have expired while the details screen was open.
+		val media = webClient.httpGet(chapter.url.substringBefore('?')).parseHtml().let(::parseMedia)
+		mediaCache[id] = PostMetadata(mediaCache[id]?.title.orEmpty(), media.variants.map { variant ->
+			VideoVariantLabel(variant.key, variant.label)
+		})
 		val directUrl = media.variants.firstOrNull { it.key == key }?.url
 			?: throw ParseException("Video rendition '$key' is unavailable", chapter.url)
 		return listOf(MangaPage(generateUid(directUrl), directUrl, media.previewUrl, source))
@@ -194,12 +199,17 @@ internal abstract class KvsVideoParser(
 		"Cannot find video id in $url"
 	}
 
+	private data class PostMetadata(val title: String, val variants: List<VideoVariantLabel>)
+
+	private data class VideoVariantLabel(val key: String, val label: String)
+
 	private data class PostMedia(val variants: List<VideoVariant>, val previewUrl: String?)
 
 	private data class VideoVariant(val key: String, val label: String, val url: String)
 
 	private companion object {
 		const val PAGE_SIZE = 24
+		const val MEDIA_CACHE_SIZE = 32
 		const val SCREENSHOT_GROUP_SIZE = 1_000L
 		val VIDEO_PATH_REGEX = Regex("/video/\\d+/")
 		val POST_ID_REGEX = Regex("/video/(\\d+)/")

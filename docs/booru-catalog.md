@@ -124,6 +124,19 @@ Moebooru, or e621ng families. No frozen source file was changed and no frozen-so
 was made for this duration work. This is a local-code result, not a claim that every upstream API
 never has a duration property.
 
+## Parser follow-up: signed media and cache bounds
+
+| Area | FETCHED | DOCUMENTED | ASSUMED |
+|---|---|---|---|
+| Rule34Video signed rendition refresh | Earlier fetched Rule34Video detail pages exposed time-signed `/get_file/` MP4 links. | `KvsVideoParser.getPages` now always fetches and parses the canonical post immediately before returning the selected `MangaPage`; no direct `/get_file/` URL is retained in its cache. | Android playback remains UNPROVEN. |
+| Rule34Video retained KVS metadata | No new response was fetched for metadata. | The 32-entry LRU stores only the last post title and quality-label/key pairs; a signed URL, screenshot URL, or `MangaPage` is never stored in it. | Cached labels are an implementation detail, not media availability evidence. |
+| Philomena cache | No new response was fetched for cache behavior. | The `PostMedia` cache is a 32-entry, access-ordered LRU. It retains API representation URLs, which are not Rule34Video-style KVS signed download URLs. | Device media access remains UNPROVEN. |
+| Rule34Hentai cache | No new response was fetched for cache behavior. | Both persistent Shimmie listing-media and duration caches are separate 32-entry, access-ordered LRUs. | Device media access remains UNPROVEN. |
+| Wallhaven cache | No new response was fetched for cache behavior. | The persistent Wallhaven post cache is a 32-entry, access-ordered LRU. | Device media access remains UNPROVEN. |
+| SFM Compile / WordPress | Source code inspection found no persistent media cache. | Its `LinkedHashMap` is request-local listing de-duplication and is discarded when `getListPage` returns; no cache entry survives between pages. | No device-memory conclusion is made. |
+
+The cache implementation is a synchronized, access-ordered `LinkedHashMap` with `removeEldestEntry` at 32 entries. No dependency, image-loader, TLS, certificate, or app-side change was made.
+
 ## Repaired or held sources
 
 | Site | Tier | Engine | Base | Quirks | Verdict | Evidence basis | Response excerpt (under 2 KB) |

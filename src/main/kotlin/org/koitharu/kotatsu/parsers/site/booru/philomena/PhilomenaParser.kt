@@ -26,7 +26,6 @@ import org.koitharu.kotatsu.parsers.util.json.toJSONArrayOrNull
 import org.koitharu.kotatsu.parsers.util.json.toJSONObjectOrNull
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Base parser for Philomena-based boorus (Derpibooru, Ponybooru, Furbooru, Twibooru).
@@ -84,7 +83,7 @@ internal abstract class PhilomenaParser(
 	/** Enables factual API `duration` rendering for sources that opt into the Round 2 video contract. */
 	protected open val includeVideoDuration: Boolean = false
 
-	private val mediaCache = ConcurrentHashMap<Long, PostMedia>()
+	private val mediaCache = LruCache<Long, PostMedia>(MEDIA_CACHE_SIZE)
 
 	init {
 		paginator.firstPage = 1

@@ -13,7 +13,6 @@ import org.koitharu.kotatsu.parsers.site.booru.BooruParser
 import org.koitharu.kotatsu.parsers.util.*
 import java.util.EnumSet
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * HTML parser for Shimmie2 installations that use `/post/list/{tags}/{page}` listings.
@@ -36,8 +35,8 @@ internal abstract class ShimmieParser(
 	// single truthful app-side content category instead of fabricating safe/questionable filters.
 	override val supportedRatings = EnumSet.of(ContentRating.ADULT)
 
-	private val listMediaCache = ConcurrentHashMap<Long, BooruPost>()
-	private val durationCache = ConcurrentHashMap<Long, String>()
+	private val listMediaCache = LruCache<Long, BooruPost>(MEDIA_CACHE_SIZE)
+	private val durationCache = LruCache<Long, String>(MEDIA_CACHE_SIZE)
 
 	init {
 		paginator.firstPage = 1
@@ -156,6 +155,7 @@ internal abstract class ShimmieParser(
 
 	private companion object {
 		const val PAGE_SIZE = 48
+		const val MEDIA_CACHE_SIZE = 32
 		val POST_ID_REGEX = Regex("/post/view/(\\d+)")
 		val THUMB_HASH_REGEX = Regex("/_thumbs/([^/]+)/")
 		val FILE_EXTENSION_REGEX = Regex("[a-z0-9]{2,5}")

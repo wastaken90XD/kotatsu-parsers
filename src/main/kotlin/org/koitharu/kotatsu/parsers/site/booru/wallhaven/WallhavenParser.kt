@@ -9,7 +9,6 @@ import org.koitharu.kotatsu.parsers.core.PagedMangaParser
 import org.koitharu.kotatsu.parsers.model.*
 import org.koitharu.kotatsu.parsers.util.*
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 /** Anonymous Wallhaven v1 API parser. Anonymous API responses expose SFW results only. */
 internal abstract class WallhavenParser(
@@ -29,7 +28,7 @@ internal abstract class WallhavenParser(
 	isSearchWithFiltersSupported = true,
 )
 
-	private val postCache = ConcurrentHashMap<String, Post>()
+	private val postCache = LruCache<String, Post>(POST_CACHE_SIZE)
 
 	init {
 		paginator.firstPage = 1
@@ -167,6 +166,7 @@ internal abstract class WallhavenParser(
 
 	private companion object {
 		const val PAGE_SIZE = 24
+		const val POST_CACHE_SIZE = 32
 		val POST_ID_REGEX = Regex("/w/([a-z0-9]+)", RegexOption.IGNORE_CASE)
 	}
 }
