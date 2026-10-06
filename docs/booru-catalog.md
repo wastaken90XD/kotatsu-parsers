@@ -137,6 +137,14 @@ never has a duration property.
 
 The cache implementation is a synchronized, access-ordered `LinkedHashMap` with `removeEldestEntry` at 32 entries. No dependency, image-loader, TLS, certificate, or app-side change was made.
 
+## Parser follow-up: Rule34Video signed media URL shape
+
+| Area | FETCHED | DOCUMENTED | ASSUMED |
+|---|---|---|---|
+| Rule34Video direct rendition URL | Earlier fetched Rule34Video post-detail responses exposed direct MP4 download anchors in this shape: `https://rule34video.com/get_file/<storage-path>/<post-id>_<quality>.mp4/?v-acctoken=<redacted>&download=true`. Fetched examples included a numeric quality such as `1080p`. | `KvsVideoParser` resolves this URL from a fresh canonical detail request immediately before it returns the selected page. | Device playback and the source's exact token lifetime are UNPROVEN. |
+
+The `v-acctoken` value is intentionally redacted. It is time-signed, so it must never be retained for later playback; the chapter contains only the stable post URL and selected quality key.
+
 ## Parser follow-up: Philomena animated rendition order
 
 | Area | FETCHED | DOCUMENTED | ASSUMED |
